@@ -99,6 +99,7 @@ void unload_database(CounterDB* db) {
 		perror("close");
 		abort();
 	}
+    unload_names(db->names);
 	g_hash_table_destroy(db->index);
 	free(db);
 }
@@ -112,7 +113,7 @@ void unload_database(CounterDB* db) {
  */
 Counter* add_counter(CounterDB* db, const char* name) {
 	DBHeader* ncounters = (DBHeader* )db->region;
-	Counter* new_counter = (Counter* )db->region + (ncounters->number * sizeof(Counter) + sizeof(DBHeader) + 1);
+	Counter* new_counter = (Counter* )db->region + ((ncounters->number * sizeof(Counter)) + sizeof(DBHeader) + 1);
 	memset(new_counter, 0, sizeof(Counter));
 	new_counter->count = 0;
 	new_counter->name_quark = g_quark_from_string(name);
@@ -214,14 +215,17 @@ void unload_names(NameDB* db) {
 }
 
 /**
- * Add a name to the NaemDB
+ * Add a name to the NameDB
  *  append the size of the given name and the names.db file
  */
 void add_name(NameDB* db, const char* name) {
 	DBHeader* header = (DBHeader* )db->region;
-	uint64_t nameSize = strlen(name) * sizeof(char);
-	memcpy(db->region + header->last_offset + 1, &nameSize, sizeof(uint64_t));
+	uint64_t nameSize = (strlen(name) + 1) * sizeof(char);
+    uint64_t* savedNameSize = (uint64_t* )db->region + header->last_offset + 1;
+    memset(savedNameSize, 0, sizeof(uint64_t));
+    *savedNameSize = nameSize;
 	char* savedName = (char* )db->region + header->last_offset + sizeof(uint64_t) + 1;
+    memset(savedName, 0, nameSize);
 	memcpy(savedName, name, nameSize);
 	header->last_offset += sizeof(uint64_t) + nameSize;
 	header->number++;
@@ -245,10 +249,12 @@ char** get_names(NameDB* db) {
 		return NULL;
 	}
 	char** names = malloc(sizeof(char*) * length);
+    memset(names, 0, sizeof(char*) * length);
 	uint64_t offset = sizeof(DBHeader);
 	for(int i=0; i<length; ++i) {
-		uint64_t size = *(uint64_t* )db->region + offset + 1;
+		uint64_t size = *((uint64_t* )db->region + offset + 1);
 		names[i] = malloc(size);
+        memset(names[i], 0, size);
 		memcpy(names[i], (void* )db->region + offset + sizeof(uint64_t) + 1, size);
 		offset += sizeof(uint64_t) + size;
 	}
