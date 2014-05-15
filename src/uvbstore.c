@@ -13,6 +13,7 @@
  */
 void new_counterdb(CounterDB* db, int fd, uint8_t* region, uint64_t size, uint64_t cur_size) {
   memset(db, 0, sizeof(CounterDB));
+  //XXX(rossdylan) use calloc when this mem is malloc'd L44
   db->fd = fd;
   db->region = region;
   db->max_size = size;
@@ -41,7 +42,10 @@ CounterDB* load_database(uint64_t size) {
   }
   free(the_stats);
   CounterDB* database = malloc(sizeof(CounterDB));
+  //XXX(rossdylan) use calloc instead of malloc before passing it into new_counterdb
+  //XXX(rossdylan) check return code of calloc
   uint8_t* region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  //XXX(rossdylan) check return code of mmap
   DBHeader* num_counters = (DBHeader* )region;
   if (empty) {
     memset(num_counters, 0, sizeof(DBHeader));
@@ -104,6 +108,7 @@ void unload_database(CounterDB* db) {
  * - update counters.db metadata (offset/num counters)
  * - add name to the names.db
  * - add name -> Counter* mapping to the index
+ *   XXX(rossdylan) Add a check to make sure we don't overrun the end of our DB
  */
 Counter* add_counter(CounterDB* db, const char* name) {
   DBHeader* ncounters = (DBHeader* )db->region;
@@ -160,6 +165,7 @@ void new_namedb(NameDB* db, int fd, uint8_t* region, uint64_t size) {
  */
 NameDB* load_names(uint64_t size) {
   int fd;
+  //XXX(rossdylan) open can be interrupted, check for eintr
   if ((fd = open("./names.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
     perror("Failed open() to load page");
     exit(1);
@@ -172,6 +178,7 @@ NameDB* load_names(uint64_t size) {
     ftruncate(fd, size);
   }
   free(the_stats);
+  //XXX(rossdylan) set pointers to NULL after free
   NameDB* database = malloc(sizeof(NameDB));
   uint8_t* region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   new_namedb(database, fd, region, size);
@@ -214,6 +221,7 @@ void add_name(NameDB* db, const char* name) {
   char* savedName = (char* )db->region + header->last_offset + sizeof(uint64_t) + 1;
   memset(savedName, 0, nameSize);
   memcpy(savedName, name, nameSize);
+  //XXX(rossdylan) use memmove instead of memset
   header->last_offset += sizeof(uint64_t) + nameSize;
   header->number++;
 }
@@ -237,12 +245,15 @@ char** get_names(NameDB* db) {
   }
   char** names = malloc(sizeof(char*) * length);
   memset(names, 0, sizeof(char*) * length);
+  //XXX(rossdylan) use calloc instead of malloc + memset
+  //XXX(rossdylan) Check return code of calloc
   uint64_t offset = sizeof(DBHeader);
   for (int i = 0; i < length; ++i) {
     uint64_t size = *((uint64_t* )db->region + offset + 1);
     names[i] = malloc(size);
     memset(names[i], 0, size);
     memcpy(names[i], (void* )db->region + offset + sizeof(uint64_t) + 1, size);
+    //XXX(rossdylan) use memmove instead of memcpy
     offset += sizeof(uint64_t) + size;
   }
   return names;
