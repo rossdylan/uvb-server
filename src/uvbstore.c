@@ -12,54 +12,48 @@
  * Initialize a new CounterDB by memsetting it to 0 and setting all its values
  */
 void new_counterdb(CounterDB* db, int fd, uint8_t* region, uint64_t size, uint64_t cur_size) {
-	memset(db, 0, sizeof(CounterDB));
-	db->fd = fd;
-	db->region = region;
-	db->max_size = size;
-	db->current_size = cur_size;
-	db->index = g_hash_table_new(g_str_hash, g_str_equal);
-	db->names = load_names(size);
+  memset(db, 0, sizeof(CounterDB));
+  db->fd = fd;
+  db->region = region;
+  db->max_size = size;
+  db->current_size = cur_size;
+  db->index = g_hash_table_new(g_str_hash, g_str_equal);
+  db->names = load_names(size);
 }
-
 
 /**
  * Load in a database of the given size
- * @TODO(rossdylan) verify that the size given is the correct size, if not, remap with more space
+ * @TODO(rossdylan) verify that the size given is the correct size, if not,
+ * remap with more space
  */
 CounterDB* load_database(uint64_t size) {
-	int fd;
-	if((fd = open("./counters.db", O_CREAT|O_RDWR, S_IRWXU)) == -1) {
-		perror("Failed open() to load page");
-		exit(1);
-	}
-	struct stat* the_stats = malloc(sizeof(struct stat));
-    fstat(fd, the_stats);
-	bool empty = false;
-	if(the_stats->st_size == 0) {
-		empty = true;
-		ftruncate(fd, size);
-	}
-	free(the_stats);
-	CounterDB* database = malloc(sizeof(CounterDB));
-	uint8_t* region = mmap(
-		0,
-		size,
-		PROT_READ|PROT_WRITE,
-		MAP_SHARED,
-		fd,
-		0);
-	DBHeader* num_counters = (DBHeader* )region;
-	if(empty) {
-		memset(num_counters, 0, sizeof(DBHeader));
-		num_counters->number = 0;
-		num_counters->last_offset = sizeof(DBHeader);
-	}
-	uint64_t current_size = sizeof(DBHeader) + sizeof(Counter) * num_counters->number;
-	new_counterdb(database, fd, region, size, current_size);
-	if(!empty) {
-		load_index(database);
-	}
-	return database;
+  int fd;
+  if ((fd = open("./counters.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
+    perror("Failed open() to load page");
+    exit(1);
+  }
+  struct stat* the_stats = malloc(sizeof(struct stat));
+  fstat(fd, the_stats);
+  bool empty = false;
+  if (the_stats->st_size == 0) {
+    empty = true;
+    ftruncate(fd, size);
+  }
+  free(the_stats);
+  CounterDB* database = malloc(sizeof(CounterDB));
+  uint8_t* region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  DBHeader* num_counters = (DBHeader* )region;
+  if (empty) {
+    memset(num_counters, 0, sizeof(DBHeader));
+    num_counters->number = 0;
+    num_counters->last_offset = sizeof(DBHeader);
+  }
+  uint64_t current_size = sizeof(DBHeader) + sizeof(Counter) * num_counters->number;
+  new_counterdb(database, fd, region, size, current_size);
+  if (!empty) {
+    load_index(database);
+  }
+  return database;
 }
 
 /**
@@ -67,21 +61,21 @@ CounterDB* load_database(uint64_t size) {
  * index (GHashTable)
  */
 void load_index(CounterDB* db) {
-	DBHeader* num_counters = (DBHeader* )db->region;
-	Counter* current;
-	int name_length = names_length(db->names);
-	if(name_length > 0) {
-		char** names = get_names(db->names);
-		for(int i=0; i<name_length; ++i) {
-			g_quark_from_string(names[i]);
-		}
-		free_names(names, name_length);
-	}
-	for(int index=0; index<num_counters->number; ++index) {
-		current = (Counter* )db->region + sizeof(DBHeader) + (index * sizeof(Counter)) + 1;
-		const char* name = g_quark_to_string(current->name_quark);
-		g_hash_table_insert(db->index, (gpointer)name, current);
-	}
+  DBHeader* num_counters = (DBHeader* )db->region;
+  Counter* current;
+  int name_length = names_length(db->names);
+  if (name_length > 0) {
+    char** names = get_names(db->names);
+    for (int i = 0; i < name_length; ++i) {
+      g_quark_from_string(names[i]);
+    }
+    free_names(names, name_length);
+  }
+  for (int index = 0; index < num_counters->number; ++index) {
+    current = (Counter* )db->region + sizeof(DBHeader) + (index * sizeof(Counter)) + 1;
+    const char* name = g_quark_to_string(current->name_quark);
+    g_hash_table_insert(db->index, (gpointer)name, current);
+  }
 }
 
 /**
@@ -91,17 +85,17 @@ void load_index(CounterDB* db) {
  * - destroy the GHashTable
  */
 void unload_database(CounterDB* db) {
-	if(munmap(db->region, db->max_size) == -1) {
-		perror("munmap");
-		abort();
-	}
-	if(close(db->fd) == -1) {
-		perror("close");
-		abort();
-	}
-    unload_names(db->names);
-	g_hash_table_destroy(db->index);
-	free(db);
+  if (munmap(db->region, db->max_size) == -1) {
+    perror("munmap");
+    abort();
+  }
+  if (close(db->fd) == -1) {
+    perror("close");
+    abort();
+  }
+  unload_names(db->names);
+  g_hash_table_destroy(db->index);
+  free(db);
 }
 
 /**
@@ -112,16 +106,16 @@ void unload_database(CounterDB* db) {
  * - add name -> Counter* mapping to the index
  */
 Counter* add_counter(CounterDB* db, const char* name) {
-	DBHeader* ncounters = (DBHeader* )db->region;
-	Counter* new_counter = (Counter* )db->region + ((ncounters->number * sizeof(Counter)) + sizeof(DBHeader) + 1);
-	memset(new_counter, 0, sizeof(Counter));
-	new_counter->count = 0;
-	new_counter->name_quark = g_quark_from_string(name);
-	ncounters->number++;
-	g_hash_table_insert(db->index, (gpointer)name, new_counter);
-	db->current_size += sizeof(Counter);
-	add_name(db->names, name);
-	return new_counter;
+  DBHeader* ncounters = (DBHeader* )db->region;
+  Counter* new_counter = (Counter* )db->region + ((ncounters->number * sizeof(Counter)) + sizeof(DBHeader) + 1);
+  memset(new_counter, 0, sizeof(Counter));
+  new_counter->count = 0;
+  new_counter->name_quark = g_quark_from_string(name);
+  ncounters->number++;
+  g_hash_table_insert(db->index, (gpointer)name, new_counter);
+  db->current_size += sizeof(Counter);
+  add_name(db->names, name);
+  return new_counter;
 }
 
 /**
@@ -131,24 +125,23 @@ Counter* add_counter(CounterDB* db, const char* name) {
  * disk is fully mirrored into index.
  */
 bool counter_exists(CounterDB* db, const char* name) {
-	return g_hash_table_contains(db->index, name);
+  return g_hash_table_contains(db->index, name);
 }
 
 /**
  * Return a pointer to a counter
  */
 Counter* get_counter(CounterDB* db, const char* name) {
-	Counter* counter = g_hash_table_lookup(db->index, (gpointer)name);
-	return counter;
+  Counter* counter = g_hash_table_lookup(db->index, (gpointer)name);
+  return counter;
 }
 
 /**
  * Increment the given counter by 1
  */
 void increment_counter(CounterDB* db, const char* name) {
-	get_counter(db, name)->count++;
+  get_counter(db, name)->count++;
 }
-
 
 /**
  * Initialize a new NameDB struct
@@ -156,45 +149,39 @@ void increment_counter(CounterDB* db, const char* name) {
  * - set all fields to the given values
  */
 void new_namedb(NameDB* db, int fd, uint8_t* region, uint64_t size) {
-	memset(db, 0, sizeof(NameDB));
-	db->fd = fd;
-	db->region = region;
-	db->size = size;
+  memset(db, 0, sizeof(NameDB));
+  db->fd = fd;
+  db->region = region;
+  db->size = size;
 }
 
 /**
  * Load in / create a new names.db
  */
 NameDB* load_names(uint64_t size) {
-	int fd;
-	if((fd = open("./names.db", O_CREAT|O_RDWR, S_IRWXU)) == -1) {
-		perror("Failed open() to load page");
-		exit(1);
-	}
-	struct stat* the_stats = malloc(sizeof(struct stat));
-    fstat(fd, the_stats);
-	bool empty = false;
-	if(the_stats->st_size == 0) {
-		empty = true;
-		ftruncate(fd, size);
-	}
-	free(the_stats);
-	NameDB* database = malloc(sizeof(NameDB));
-	uint8_t* region = mmap(
-		0,
-		size,
-		PROT_READ|PROT_WRITE,
-		MAP_SHARED,
-		fd,
-		0);
-	new_namedb(database, fd, region, size);
-	if(empty) {
-		DBHeader* header = (DBHeader* )database->region;
-		memset(header, 0, sizeof(DBHeader));
-		header->number = 0 ;
-		header->last_offset = sizeof(DBHeader);
-	}
-	return database;
+  int fd;
+  if ((fd = open("./names.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
+    perror("Failed open() to load page");
+    exit(1);
+  }
+  struct stat* the_stats = malloc(sizeof(struct stat));
+  fstat(fd, the_stats);
+  bool empty = false;
+  if (the_stats->st_size == 0) {
+    empty = true;
+    ftruncate(fd, size);
+  }
+  free(the_stats);
+  NameDB* database = malloc(sizeof(NameDB));
+  uint8_t* region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  new_namedb(database, fd, region, size);
+  if (empty) {
+    DBHeader* header = (DBHeader* )database->region;
+    memset(header, 0, sizeof(DBHeader));
+    header->number = 0;
+    header->last_offset = sizeof(DBHeader);
+  }
+  return database;
 }
 
 /**
@@ -203,15 +190,15 @@ NameDB* load_names(uint64_t size) {
  * free the NameDB struct
  */
 void unload_names(NameDB* db) {
-	if(munmap(db->region, db->size) == -1) {
-		perror("munmap");
-		abort();
-	}
-	if(close(db->fd) == -1) {
-		perror("close");
-		abort();
-	}
-	free(db);
+  if (munmap(db->region, db->size) == -1) {
+    perror("munmap");
+    abort();
+  }
+  if (close(db->fd) == -1) {
+    perror("close");
+    abort();
+  }
+  free(db);
 }
 
 /**
@@ -219,24 +206,24 @@ void unload_names(NameDB* db) {
  *  append the size of the given name and the names.db file
  */
 void add_name(NameDB* db, const char* name) {
-	DBHeader* header = (DBHeader* )db->region;
-	uint64_t nameSize = (strlen(name) + 1) * sizeof(char);
-    uint64_t* savedNameSize = (uint64_t* )db->region + header->last_offset + 1;
-    memset(savedNameSize, 0, sizeof(uint64_t));
-    *savedNameSize = nameSize;
-	char* savedName = (char* )db->region + header->last_offset + sizeof(uint64_t) + 1;
-    memset(savedName, 0, nameSize);
-	memcpy(savedName, name, nameSize);
-	header->last_offset += sizeof(uint64_t) + nameSize;
-	header->number++;
+  DBHeader* header = (DBHeader* )db->region;
+  uint64_t nameSize = (strlen(name) + 1) * sizeof(char);
+  uint64_t* savedNameSize = (uint64_t* )db->region + header->last_offset + 1;
+  memset(savedNameSize, 0, sizeof(uint64_t));
+  *savedNameSize = nameSize;
+  char* savedName = (char* )db->region + header->last_offset + sizeof(uint64_t) + 1;
+  memset(savedName, 0, nameSize);
+  memcpy(savedName, name, nameSize);
+  header->last_offset += sizeof(uint64_t) + nameSize;
+  header->number++;
 }
 
 /**
  * Return the number of names in the NameDB
  */
 int names_length(NameDB* db) {
-	DBHeader* header = (DBHeader* )db->region;
-	return header->number;
+  DBHeader* header = (DBHeader* )db->region;
+  return header->number;
 }
 
 /**
@@ -244,29 +231,29 @@ int names_length(NameDB* db) {
  * the array returned is malloc'd remember to call free_names on it.
  */
 char** get_names(NameDB* db) {
-	int length = names_length(db);
-	if(length == 0) {
-		return NULL;
-	}
-	char** names = malloc(sizeof(char*) * length);
-    memset(names, 0, sizeof(char*) * length);
-	uint64_t offset = sizeof(DBHeader);
-	for(int i=0; i<length; ++i) {
-		uint64_t size = *((uint64_t* )db->region + offset + 1);
-		names[i] = malloc(size);
-        memset(names[i], 0, size);
-		memcpy(names[i], (void* )db->region + offset + sizeof(uint64_t) + 1, size);
-		offset += sizeof(uint64_t) + size;
-	}
-	return names;
+  int length = names_length(db);
+  if (length == 0) {
+    return NULL;
+  }
+  char** names = malloc(sizeof(char*) * length);
+  memset(names, 0, sizeof(char*) * length);
+  uint64_t offset = sizeof(DBHeader);
+  for (int i = 0; i < length; ++i) {
+    uint64_t size = *((uint64_t* )db->region + offset + 1);
+    names[i] = malloc(size);
+    memset(names[i], 0, size);
+    memcpy(names[i], (void* )db->region + offset + sizeof(uint64_t) + 1, size);
+    offset += sizeof(uint64_t) + size;
+  }
+  return names;
 }
 
 /**
  * Go through the names 2D array and free everything
  */
 void free_names(char** names, int len) {
-	for(int i=0; i<len; ++i) {
-		free(names[i]);
-	}
-	free(names);
+  for (int i = 0; i < len; ++i) {
+    free(names[i]);
+  }
+  free(names);
 }
