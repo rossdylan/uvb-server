@@ -1,0 +1,20 @@
+UVB - Ultimate Victory Battle
+-----------------------------
+
+This is a server implementation for the classic CSH game UVB. This version is written in C for maximum speed, and also for getting some practice writing C.
+There are two main parts to this server. The first is the storage engine which uses mmap to store counters on disk.
+The database is made up of two parts:
+The CounterDB which has a file layout like this.
+
+struct DBHeader{uint64_t number; uint64_t last_offset;}
+struct Counter{uint64_t count; GQuark name_quark;}
+
+The other is the NameDB which has a layout like this
+
+struct DBHeader{uint64_t number; uint64_t last_offset;}
+uint64_t nameSize;
+char* name;
+
+Since names are linked to counters using GQuarks we save all the names to another file (names.db) in the order in which they were created. These names are loaded back in
+when the program does a scan of the database. It rebuilds the quarks and then iterates through the counters and saves each (char*, Counter*) pair into a GHashTable.
+This way lookups for counters are fast, but also persisted to disk since the hashtable only stores a pointer to the mmap'd region of memory holding that counter.
