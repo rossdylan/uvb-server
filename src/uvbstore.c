@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <errno.h>
 
 /**
  * Initialize a new CounterDB by memsetting it to 0 and setting all its values
@@ -27,10 +28,15 @@ void new_counterdb(CounterDB* db, int fd, uint8_t* region, uint64_t size, uint64
  */
 CounterDB* load_database(uint64_t size) {
   int fd;
-  //XXX(rossdylan) open can be interrupted, check for EINTR
-  if ((fd = open("./counters.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
-    perror("Failed open() to load page");
-    exit(1);
+	while(true) {
+		if ((fd = open("./counters.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
+			if(errno == EINTR) {
+				continue;
+			}
+			perror("Failed open() to load page");
+			exit(1);
+		}
+		break;
   }
   struct stat* the_stats;
   if((the_stats = malloc(sizeof(struct stat))) == NULL) {
@@ -175,10 +181,15 @@ void new_namedb(NameDB* db, int fd, uint8_t* region, uint64_t size) {
  */
 NameDB* load_names(uint64_t size) {
   int fd;
-  //XXX(rossdylan) open can be interrupted, check for eintr
-  if ((fd = open("./names.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
-    perror("Failed open() to load page");
-    exit(1);
+	while(true) {
+		if ((fd = open("./names.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
+			if(errno == EINTR) {
+				continue;
+			}
+			perror("Failed open() to load page");
+			exit(1);
+		}
+		break;
   }
   struct stat* the_stats;
   if((the_stats = malloc(sizeof(struct stat))) == NULL) {
@@ -232,6 +243,7 @@ void unload_names(NameDB* db) {
  *  append the size of the given name and the names.db file
  */
 void add_name(NameDB* db, const char* name) {
+	//XXX(rossdylan) make sure we don't add a name that goes over the end of our db
   DBHeader* header = (DBHeader* )db->region;
   uint64_t nameSize = (strlen(name) + 1) * sizeof(char);
   uint64_t* savedNameSize = (uint64_t* )db->region + header->last_offset + 1;
@@ -273,7 +285,7 @@ char** get_names(NameDB* db) {
       perror("calloc: *name");
       exit(EXIT_FAILURE);
     }
-	memmove(names[i], (void* )db->region + offset + sizeof(uint64_t) + 1, size);
+		memmove(names[i], (void* )db->region + offset + sizeof(uint64_t) + 1, size);
     offset += sizeof(uint64_t) + size;
   }
   return names;
