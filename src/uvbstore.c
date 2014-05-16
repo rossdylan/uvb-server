@@ -27,6 +27,7 @@ void new_counterdb(CounterDB* db, int fd, uint8_t* region, uint64_t size, uint64
  */
 CounterDB* load_database(uint64_t size) {
   int fd;
+  //XXX(rossdylan) open can be interrupted, check for EINTR
   if ((fd = open("./counters.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
     perror("Failed open() to load page");
     exit(1);
@@ -238,8 +239,7 @@ void add_name(NameDB* db, const char* name) {
   *savedNameSize = nameSize;
   char* savedName = (char* )db->region + header->last_offset + sizeof(uint64_t) + 1;
   memset(savedName, 0, nameSize);
-  memcpy(savedName, name, nameSize);
-  //XXX(rossdylan) use memmove instead of memset
+  memmove(savedName, name, nameSize);
   header->last_offset += sizeof(uint64_t) + nameSize;
   header->number++;
 }
@@ -273,8 +273,7 @@ char** get_names(NameDB* db) {
       perror("calloc: *name");
       exit(EXIT_FAILURE);
     }
-    memcpy(names[i], (void* )db->region + offset + sizeof(uint64_t) + 1, size);
-    //XXX(rossdylan) use memmove instead of memcpy
+	memmove(names[i], (void* )db->region + offset + sizeof(uint64_t) + 1, size);
     offset += sizeof(uint64_t) + size;
   }
   return names;
