@@ -43,6 +43,7 @@ CounterDB* load_database(uint64_t size) {
     ftruncate(fd, size);
   }
   free(the_stats);
+  the_stats = NULL;
   CounterDB* database;
   if((database = calloc(1, sizeof(CounterDB))) == NULL) {
     perror("calloc: CounterDB");
@@ -107,6 +108,7 @@ void unload_database(CounterDB* db) {
   unload_names(db->names);
   g_hash_table_destroy(db->index);
   free(db);
+  db = NULL;
 }
 
 /**
@@ -189,7 +191,7 @@ NameDB* load_names(uint64_t size) {
     ftruncate(fd, size);
   }
   free(the_stats);
-  //XXX(rossdylan) set pointers to NULL after free
+  the_stats = NULL;
   NameDB* database;
   if((database = calloc(1, sizeof(NameDB))) == NULL) {
     perror("calloc: NameDB");
@@ -221,6 +223,7 @@ void unload_names(NameDB* db) {
     abort();
   }
   free(db);
+  db = NULL;
 }
 
 /**
@@ -285,4 +288,5 @@ void free_names(char** names, int len) {
     free(names[i]);
   }
   free(names);
+  names = NULL;
 }
