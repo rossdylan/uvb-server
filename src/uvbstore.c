@@ -12,8 +12,6 @@
  * Initialize a new CounterDB by memsetting it to 0 and setting all its values
  */
 void new_counterdb(CounterDB* db, int fd, uint8_t* region, uint64_t size, uint64_t cur_size) {
-  memset(db, 0, sizeof(CounterDB));
-  //XXX(rossdylan) use calloc when this mem is malloc'd L44
   db->fd = fd;
   db->region = region;
   db->max_size = size;
@@ -41,11 +39,16 @@ CounterDB* load_database(uint64_t size) {
     ftruncate(fd, size);
   }
   free(the_stats);
-  CounterDB* database = malloc(sizeof(CounterDB));
-  //XXX(rossdylan) use calloc instead of malloc before passing it into new_counterdb
-  //XXX(rossdylan) check return code of calloc
-  uint8_t* region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-  //XXX(rossdylan) check return code of mmap
+  CounterDB* database;
+  if((database = calloc(1, sizeof(CounterDB))) == NULL) {
+    perror("calloc: CounterDB");
+    exit(EXIT_FAILURE);
+  }
+  uint8_t* region;
+  if((region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED) {
+    perror("mmap: CounterDB Region");
+    exit(EXIT_FAILURE);
+  }
   DBHeader* num_counters = (DBHeader* )region;
   if (empty) {
     memset(num_counters, 0, sizeof(DBHeader));
@@ -179,7 +182,11 @@ NameDB* load_names(uint64_t size) {
   }
   free(the_stats);
   //XXX(rossdylan) set pointers to NULL after free
-  NameDB* database = malloc(sizeof(NameDB));
+  NameDB* database;
+  if((database = calloc(1, sizeof(NameDB))) == NULL) {
+    perror("calloc: NameDB");
+    exit(EXIT_FAILURE);
+  }
   uint8_t* region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   new_namedb(database, fd, region, size);
   if (empty) {
@@ -236,22 +243,25 @@ int names_length(NameDB* db) {
 
 /**
  * Return a 2D array containing references to all the names in the NameDB
- * the array returned is malloc'd remember to call free_names on it.
+ * the array returned is calloc'd remember to call free_names on it.
  */
 char** get_names(NameDB* db) {
   int length = names_length(db);
   if (length == 0) {
     return NULL;
   }
-  char** names = malloc(sizeof(char*) * length);
-  memset(names, 0, sizeof(char*) * length);
-  //XXX(rossdylan) use calloc instead of malloc + memset
-  //XXX(rossdylan) Check return code of calloc
+  char** names;
+  if((names = calloc(length, sizeof(char*))) == NULL) {
+    perror("calloc: **names");
+    exit(EXIT_FAILURE);
+  }
   uint64_t offset = sizeof(DBHeader);
   for (int i = 0; i < length; ++i) {
     uint64_t size = *((uint64_t* )db->region + offset + 1);
-    names[i] = malloc(size);
-    memset(names[i], 0, size);
+    if((names[i] = calloc(1, size)) == NULL) {
+      perror("calloc: *name");
+      exit(EXIT_FAILURE);
+    }
     memcpy(names[i], (void* )db->region + offset + sizeof(uint64_t) + 1, size);
     //XXX(rossdylan) use memmove instead of memcpy
     offset += sizeof(uint64_t) + size;
