@@ -111,7 +111,12 @@ void unload_database(CounterDB* db) {
     perror("munmap");
     abort();
   }
-  if (close(db->fd) == -1) {
+	int rval;
+	do {
+		rval = close(db->fd);
+	}
+	while(errno == EINTR);
+	if(rval == -1) {
     perror("close");
     abort();
   }
@@ -215,7 +220,11 @@ NameDB* load_names(uint64_t size) {
     perror("calloc: NameDB");
     exit(EXIT_FAILURE);
   }
-  uint8_t* region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  uint8_t* region;
+	if((region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == NULL) {
+    perror("mmap: NameDB Region");
+    exit(EXIT_FAILURE);
+	}
   new_namedb(database, fd, region, size);
   if (empty) {
     DBHeader* header = (DBHeader* )database->region;
@@ -236,7 +245,12 @@ void unload_names(NameDB* db) {
     perror("munmap");
     abort();
   }
-  if (close(db->fd) == -1) {
+	int rval;
+	do {
+		rval = close(db->fd);
+	}
+	while(errno == EINTR);
+	if(rval == -1) {
     perror("close");
     abort();
   }
