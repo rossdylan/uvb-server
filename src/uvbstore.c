@@ -47,7 +47,10 @@ CounterDB* load_database(uint64_t size) {
   bool empty = false;
   if (the_stats->st_size == 0) {
     empty = true;
-    ftruncate(fd, size);
+    if(ftruncate(fd, size) == -1) {
+			perror("ftruncate: load_database");
+			exit(EXIT_FAILURE);
+		}
   }
   free(the_stats);
   the_stats = NULL;
@@ -200,7 +203,10 @@ NameDB* load_names(uint64_t size) {
   bool empty = false;
   if (the_stats->st_size == 0) {
     empty = true;
-    ftruncate(fd, size);
+    if(ftruncate(fd, size)) {
+			perror("ftruncate: load_names");
+			exit(EXIT_FAILURE);
+		}
   }
   free(the_stats);
   the_stats = NULL;
