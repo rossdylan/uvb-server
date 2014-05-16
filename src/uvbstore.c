@@ -31,7 +31,11 @@ CounterDB* load_database(uint64_t size) {
     perror("Failed open() to load page");
     exit(1);
   }
-  struct stat* the_stats = malloc(sizeof(struct stat));
+  struct stat* the_stats;
+  if((the_stats = malloc(sizeof(struct stat))) == NULL) {
+    perror("malloc: load_database: stat:");
+    exit(EXIT_FAILURE);
+  }
   fstat(fd, the_stats);
   bool empty = false;
   if (the_stats->st_size == 0) {
@@ -173,7 +177,11 @@ NameDB* load_names(uint64_t size) {
     perror("Failed open() to load page");
     exit(1);
   }
-  struct stat* the_stats = malloc(sizeof(struct stat));
+  struct stat* the_stats;
+  if((the_stats = malloc(sizeof(struct stat))) == NULL) {
+    perror("malloc: load_names: stat:");
+    exit(EXIT_FAILURE);
+  }
   fstat(fd, the_stats);
   bool empty = false;
   if (the_stats->st_size == 0) {
