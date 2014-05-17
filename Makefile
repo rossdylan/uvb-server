@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-lglib-2.0 -g
+CFLAGS=-lglib-2.0 -levent -g
 SOURCE= $(wildcard src/*.c)
 INCLUDE=-I./include -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include
 OUT=-o

@@ -1,27 +1,37 @@
 #include "uvbstore.h"
+#include "uvbserver.h"
 #include <sys/types.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <event2/event.h>
+
+
+static void usage(char* name) {
+  fprintf(stderr, "Usage: %s <address> <port>\n", name);
+}
 
 int main(int argc, char** argv) {
-  CounterDB* database = load_database(10 * sysconf(_SC_PAGE_SIZE));
-  if(!counter_exists(database, "rossdylan")) {
-    add_counter(database, "rossdylan");
+  if(argc < 3) {
+    usage(argv[0]);
+    exit(EXIT_FAILURE);
   }
-  if(!counter_exists(database, "tonystark")) {
-    add_counter(database, "tonystark");
-  }
-  increment_counter(database, "rossdylan");
-  increment_counter(database, "tonystark");
-  increment_counter(database, "tonystark");
-  unload_database(database);
 
-  // now load it back in
-  database = load_database(10 * sysconf(_SC_PAGE_SIZE));
-  Counter* rdc = get_counter(database, "rossdylan");
-  Counter* tsc = get_counter(database, "tonystark");
-  printf("The %s counter: %lu\n", "rossdylan", rdc->count);
-  printf("The %s counter: %lu\n", "tonystark", tsc->count);
-  unload_database(database);
+  char* strol_end;
+  fprintf(stderr, "converting: %s\n", argv[2]);
+  int port = strtol(argv[2], &strol_end, 10);
+  if(*strol_end) {
+    fprintf(stderr, "<port> must be a valid integer\n");
+    exit(EXIT_FAILURE);
+  }
+  CounterDB* database = load_database(10 * sysconf(_SC_PAGE_SIZE));
+  UVBServer* server;
+  if((server = calloc(1, sizeof(UVBServer))) == NULL) {
+    perror("calloc: UVBServer");
+    exit(EXIT_FAILURE);
+  }
+  struct event_base* base = event_base_new();
+  new_uvbserver(server, base, argv[1], port);
+  event_base_dispatch(base);
+  exit(EXIT_SUCCESS);
 }
