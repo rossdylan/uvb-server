@@ -165,7 +165,7 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
         int ncounters = num_counters(db);
         evbuffer_add_printf(evb, "<html>\
                 <title> Welcome to Ultimate Victory Battle </title>\
-                <p>\
+                <p>\n\
                 This is the new UVB server, written in C by rossdylan.\n\
                 <br />\
                 To play POST to /register/[yourname]\n\
@@ -180,9 +180,17 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
             //one goes to disk with NamesDB and one rips them out of the GHashTable
             char** names = counter_names(db);
             char* base_fmt = "<b>%s:</b> %lu <br />\n";
+            uint64_t topCounter = 0;
+            char* topName = "";
             for(int i=0; i<ncounters; ++i) {
+                Counter* counter = get_counter(db, names[i]);
+                if(counter->count > topCounter) {
+                    topName = names[i];
+                    topCounter = counter->count;
+                }
                 evbuffer_add_printf(evb, base_fmt, names[i], get_counter(db, names[i])->count);
             }
+            evbuffer_add_printf(evb, "Current Winner is: <b>%s</b><br />\n", topName);
             free_names(names, ncounters);
         }
         evbuffer_add_printf(evb, "</html>\n");
