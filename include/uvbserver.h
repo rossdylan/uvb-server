@@ -6,16 +6,16 @@
 #include "uvbstore.h"
 
 typedef struct {
-  void* handler;
-  char* path;
+    void* handler;
+    char* path;
 } UVBRoute;
 
 typedef struct {
-  struct evhttp* http;
-  struct evhttp_bound_socket *handle;
-  char* addr;
-  int port;
-  CounterDB* database;
+    struct evhttp* http;
+    struct evhttp_bound_socket *handle;
+    char* addr;
+    int port;
+    CounterDB* database;
 } UVBServer;
 
 void new_uvbserver(UVBServer* serv, struct event_base* base, char* addr, int port, CounterDB* database);
