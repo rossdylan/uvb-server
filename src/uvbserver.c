@@ -124,7 +124,7 @@ void uvb_route_dispatch(struct evhttp_request* req, void* arg) {
             if(nsegs == 2) {
                 if(strcmp(segs[0], "register") == 0) {
                     if(!counter_exists(db, segs[1])) {
-                        fprintf(stderr, "Created new counter for %s\n", segs[0]);
+                        fprintf(stderr, "Created new counter for %s\n", segs[1]);
                         add_counter(db, segs[1]);
                         evhttp_send_reply(req, 201, "User Created", NULL);
                     }
