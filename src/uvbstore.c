@@ -28,16 +28,17 @@ void new_counterdb(CounterDB* db, int fd, uint8_t* region, uint64_t size, uint64
  */
 CounterDB* load_database(uint64_t size) {
     int fd;
-    while(true) {
-        if ((fd = open("./counters.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
-            if(errno == EINTR) {
-                continue;
+    do {
+        if(errno == EINTR)
+            errno = 0;
+        if((fd = open("./counters.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
+            if(errno != EINTR) {
+                perror("open: load_database");
+                exit(EXIT_FAILURE);
             }
-            perror("Failed open() to load page");
-            exit(1);
         }
-        break;
-    }
+    } while(errno == EINTR);
+
     struct stat* the_stats;
     if((the_stats = malloc(sizeof(struct stat))) == NULL) {
         perror("malloc: load_database: stat:");
@@ -47,10 +48,17 @@ CounterDB* load_database(uint64_t size) {
     bool empty = false;
     if (the_stats->st_size == 0) {
         empty = true;
-        if(ftruncate(fd, size) == -1) {
-            perror("ftruncate: load_database");
-            exit(EXIT_FAILURE);
-        }
+        do {
+            if(errno == EINTR) {
+                errno = 0;
+            }
+            if(ftruncate(fd, size) == -1) {
+                if(errno != EINTR) {
+                    perror("ftruncate: load_database");
+                    exit(EXIT_FAILURE);
+                }
+            }
+        } while(errno == EINTR);
     }
     free(the_stats);
     the_stats = NULL;
@@ -112,15 +120,16 @@ void unload_database(CounterDB* db) {
         perror("munmap");
         abort();
     }
-    int rval;
     do {
-        rval = close(db->fd);
-    }
-    while(errno == EINTR);
-    if(rval == -1) {
-        perror("close");
-        abort();
-    }
+        if(errno == EINTR)
+            errno = 0;
+        if(close(db->fd) == -1) {
+            if(errno != EINTR) {
+                perror("close: unload_database");
+                exit(EXIT_FAILURE);
+            }
+        }
+    } while(errno == EINTR);
     unload_names(db->names);
     g_hash_table_destroy(db->index);
     free(db);
@@ -198,16 +207,17 @@ void new_namedb(NameDB* db, int fd, uint8_t* region, uint64_t size) {
  */
 NameDB* load_names(uint64_t size) {
     int fd;
-    while(true) {
-        if ((fd = open("./names.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
-            if(errno == EINTR) {
-                continue;
+    do {
+        if(errno == EINTR)
+            errno = 0;
+        if((fd = open("./names.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
+            if(errno != EINTR) {
+                perror("open: load_names");
+                exit(EXIT_FAILURE);
             }
-            perror("Failed open() to load page");
-            exit(1);
         }
-        break;
-    }
+    } while(errno == EINTR);
+
     struct stat* the_stats;
     if((the_stats = malloc(sizeof(struct stat))) == NULL) {
         perror("malloc: load_names: stat:");
@@ -217,10 +227,17 @@ NameDB* load_names(uint64_t size) {
     bool empty = false;
     if (the_stats->st_size == 0) {
         empty = true;
-        if(ftruncate(fd, size)) {
-            perror("ftruncate: load_names");
-            exit(EXIT_FAILURE);
-        }
+        do {
+            if(errno == EINTR) {
+                errno = 0;
+            }
+            if(ftruncate(fd, size) == -1) {
+                if(errno != EINTR) {
+                    perror("ftruncate: load_names");
+                    exit(EXIT_FAILURE);
+                }
+            }
+        } while(errno == EINTR);
     }
     free(the_stats);
     the_stats = NULL;
@@ -254,15 +271,17 @@ void unload_names(NameDB* db) {
         perror("munmap");
         abort();
     }
-    int rval;
     do {
-        rval = close(db->fd);
-    }
-    while(errno == EINTR);
-    if(rval == -1) {
-        perror("close");
-        abort();
-    }
+        if(errno == EINTR)
+            errno = 0;
+        if(close(db->fd) == -1) {
+            if(errno != EINTR) {
+                perror("close: unload_names");
+                exit(EXIT_FAILURE);
+            }
+        }
+    } while(errno == EINTR);
+
     free(db);
     db = NULL;
 }
