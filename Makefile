@@ -1,16 +1,20 @@
 CC=clang
 CFLAGS=-lglib-2.0 -levent -g
 SOURCE= $(wildcard src/*.c)
-INCLUDE=-I./include -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include
+INCLUDE=-I./include $(shell pkg-config --cflags --libs glib-2.0)
 OUT=-o
 EXECUTABLE=uvb-server
 
-all:
+all: $(EXECUTABLE)
+
+$(EXECUTABLE):
 	$(CC) $(CFLAGS) $(INCLUDE) $(OUT) $(EXECUTABLE) $(SOURCE)
 
 install:
-	cp $(EXECUTABLE) /usr/bin/
+	cp $(EXECUTABLE) /usr/local/bin/$(EXECUTABLE)
+
+uninstall:
+	$(RM) /usr/local/bin/$(EXECUTABLE)
 
 clean:
-	rm $(EXECUTABLE)
-
+	$(RM) $(EXECUTABLE) counters.db names.db
