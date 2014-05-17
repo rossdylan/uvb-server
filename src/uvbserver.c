@@ -138,6 +138,8 @@ void uvb_route_dispatch(struct evhttp_request* req, void* arg) {
                 evhttp_send_reply(req, 404, "Not Found", NULL);
             }
         }
+        evhttp_uri_free(uri);
+        uri = NULL;
         free_split(segs, nsegs);
     }
 }
