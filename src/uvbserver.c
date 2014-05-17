@@ -9,8 +9,13 @@
  */
 int ntok(char* str, const char* delim) {
     //XXX(rossdylan) I'm really tired, there is probably a better way to this
-    char* copied = calloc(strlen(str)+1, sizeof(char));
-    memmove(copied, str,  sizeof(char) * (strlen(str)+1));
+    size_t size = strlen(str)+1;
+    char* copied;
+    if((copied = calloc(size, sizeof(char))) == NULL) {
+        perror("calloc: ntok");
+        exit(EXIT_FAILURE);
+    }
+    memmove(copied, str,  sizeof(char) * size);
 
     int num = 0;
     char* token = strtok(copied, delim);
@@ -28,8 +33,13 @@ int ntok(char* str, const char* delim) {
  */
 char** split(char* str, const char* delim, int n) {
     //XXX(rossdylan) I'm really tired, there is probably a better way to this
-    char* copied = calloc(strlen(str)+1, sizeof(char));
-    memmove(copied, str, (strlen(str)+1) * sizeof(char));
+    size_t size = strlen(str)+1;
+    char* copied;
+    if((copied = calloc(size, sizeof(char))) == NULL) {
+        perror("calloc: ntok");
+        exit(EXIT_FAILURE);
+    }
+    memmove(copied, str,  sizeof(char) * size);
 
     char** tokens;
     if((tokens = calloc(n, sizeof(char*))) == NULL) {
@@ -39,8 +49,8 @@ char** split(char* str, const char* delim, int n) {
     char* token = strtok(copied, delim);
     int index = 0;
     while(token != NULL) {
-        size_t tsize = sizeof(char) * (strlen(token) + 1);
-        if((tokens[index] = calloc(1, tsize)) == NULL) {
+        size_t tsize = (strlen(token) + 1);
+        if((tokens[index] = calloc(tsize, sizeof(char))) == NULL) {
             perror("calloc: split: token");
             exit(EXIT_FAILURE);
         }
@@ -153,6 +163,8 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
         evbuffer_add_printf(evb, "<html>\n");
         if(ncounters > 0) {
             //XXX(rossdylan) shit man lotta calloc/free going down here
+            //TODO(rossdylan) I need to compare the ways I can get a array of names
+            //one goes to disk with NamesDB and one rips them out of the GHashTable
             char** names = counter_names(db);
             char* base_fmt = "<b>%s:</b> %lu <br />\n";
             for(int i=0; i<ncounters; ++i) {
