@@ -158,7 +158,12 @@ Counter* add_counter(CounterDB* db, const char* name) {
  * disk is fully mirrored into index.
  */
 bool counter_exists(CounterDB* db, const char* name) {
-    return g_hash_table_contains(db->index, name);
+    if(GLIB_CHECK_VERSION(2, 3, 2)) {
+        return g_hash_table_contains(db->index, name);
+    }
+    else {
+        return g_hash_table_lookup(db->index, name) != NULL;
+    }
 }
 
 /**
