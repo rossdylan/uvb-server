@@ -7,6 +7,9 @@
 /**
  * Get the number of tokens created using strtok on a string
  */
+
+
+
 int ntok(char* str, const char* delim) {
     //XXX(rossdylan) I'm really tired, there is probably a better way to this
     size_t size = strlen(str)+1;
@@ -160,7 +163,17 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
     if(cmdtype == EVHTTP_REQ_GET) {
         struct evbuffer* evb = evbuffer_new();
         int ncounters = num_counters(db);
-        evbuffer_add_printf(evb, "<html>\n");
+        evbuffer_add_printf(evb, "<html>\
+                <title> Welcome to Ultimate Victory Battle </title>\
+                <p>\
+                This is the new UVB server, written in C by rossdylan.\n\
+                <br />\
+                To play POST to /register/[yourname]\n\
+                <br />\
+                Then POST to /[yourname] to increment your count\n\
+                <br />\
+                Counters are displayed here. Have fun\n\
+                </p><br />");
         if(ncounters > 0) {
             //XXX(rossdylan) shit man lotta calloc/free going down here
             //TODO(rossdylan) I need to compare the ways I can get a array of names
