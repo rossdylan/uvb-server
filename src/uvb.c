@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <event2/event.h>
+#include <event2/http.h>
 
 
 static void usage(char* name) {
@@ -18,7 +19,6 @@ int main(int argc, char** argv) {
   }
 
   char* strol_end;
-  fprintf(stderr, "converting: %s\n", argv[2]);
   int port = strtol(argv[2], &strol_end, 10);
   if(*strol_end) {
     fprintf(stderr, "<port> must be a valid integer\n");
@@ -31,7 +31,8 @@ int main(int argc, char** argv) {
     exit(EXIT_FAILURE);
   }
   struct event_base* base = event_base_new();
-  new_uvbserver(server, base, argv[1], port);
+  new_uvbserver(server, base, argv[1], port, database);
   event_base_dispatch(base);
+  free_uvbserver(server);
   exit(EXIT_SUCCESS);
 }

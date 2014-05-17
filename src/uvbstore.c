@@ -64,17 +64,18 @@ CounterDB* load_database(uint64_t size) {
     perror("mmap: CounterDB Region");
     exit(EXIT_FAILURE);
   }
-  DBHeader* num_counters = (DBHeader* )region;
+  DBHeader* ncounters = (DBHeader* )region;
   if (empty) {
-    memset(num_counters, 0, sizeof(DBHeader));
-    num_counters->number = 0;
-    num_counters->last_offset = sizeof(DBHeader);
+    memset(ncounters, 0, sizeof(DBHeader));
+    ncounters->number = 0;
+    ncounters->last_offset = sizeof(DBHeader);
   }
-  uint64_t current_size = sizeof(DBHeader) + sizeof(Counter) * num_counters->number;
+  uint64_t current_size = sizeof(DBHeader) + sizeof(Counter) * ncounters->number;
   new_counterdb(database, fd, region, size, current_size);
   if (!empty) {
     load_index(database);
   }
+  fprintf(stderr, "Loaded %lu counters\n", num_counters(database));
   return database;
 }
 
@@ -111,12 +112,12 @@ void unload_database(CounterDB* db) {
     perror("munmap");
     abort();
   }
-	int rval;
-	do {
-		rval = close(db->fd);
-	}
-	while(errno == EINTR);
-	if(rval == -1) {
+  int rval;
+  do {
+    rval = close(db->fd);
+  }
+  while(errno == EINTR);
+  if(rval == -1) {
     perror("close");
     abort();
   }
@@ -141,7 +142,10 @@ Counter* add_counter(CounterDB* db, const char* name) {
   new_counter->count = 0;
   new_counter->name_quark = g_quark_from_string(name);
   ncounters->number++;
-  g_hash_table_insert(db->index, (gpointer)name, new_counter);
+  size_t nlen = (strlen(name) + 1);
+  char* localname = calloc(nlen, sizeof(char));
+  memmove(localname, name, sizeof(char) * nlen);
+  g_hash_table_insert(db->index, (gpointer)localname, new_counter);
   db->current_size += sizeof(Counter);
   add_name(db->names, name);
   return new_counter;
@@ -317,7 +321,32 @@ char** get_names(NameDB* db) {
 void free_names(char** names, int len) {
   for (int i = 0; i < len; ++i) {
     free(names[i]);
+    names[i] = NULL;
   }
   free(names);
   names = NULL;
+}
+
+uint64_t num_counters(CounterDB* db) {
+  return g_hash_table_size(db->index);
+}
+
+char** counter_names(CounterDB* db) {
+  char** names;
+  if((names = calloc(num_counters(db), sizeof(char*))) == NULL) {
+    perror("calloc: counter_names");
+    exit(EXIT_FAILURE);
+  }
+  GList* nameList = g_hash_table_get_keys(db->index);
+  for(int i=0; i<g_list_length(nameList); ++i) {
+    char* name = g_list_nth_data(nameList, i);
+    size_t nsize = (strlen(name) + 1) * sizeof(char);
+    if((names[i] = calloc(nsize, sizeof(char))) == NULL) {
+      perror("calloc: counter_names: name");
+      exit(EXIT_FAILURE);
+    }
+    memmove(names[i], name, nsize);
+  }
+  g_list_free(nameList);
+  return names;
 }

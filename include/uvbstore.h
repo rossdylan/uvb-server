@@ -49,6 +49,8 @@ Counter* add_counter(CounterDB* db, const char* name);
 Counter* get_counter(CounterDB* db, const char* name);
 void increment_counter(CounterDB* db, const char* name);
 bool counter_exists(CounterDB* db, const char* name);
+uint64_t num_counters(CounterDB* db);
+char** counter_names(CounterDB* db);
 
 void load_index(CounterDB* cdb);
 #endif
