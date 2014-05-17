@@ -1,7 +1,7 @@
 UVB - Ultimate Victory Battle
 -----------------------------
 
-This is a server implementation for the classic CSH game UVB. This version is written in C for maximum speed, and also for getting some practice writing C.
+This is a server implementation for the classic CSH game UVB. This version is written in C. I chose C in order to help myself become more fluent in the langauge. 
 There are two main parts to this server. The first is the storage engine which uses mmap to store counters on disk.
 The database is made up of two parts:
 The CounterDB which has a file layout like this.
