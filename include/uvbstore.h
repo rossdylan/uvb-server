@@ -6,29 +6,29 @@
 #include <stdbool.h>
 
 typedef struct {
-  int fd;
-  uint64_t size;
-  uint8_t* region;
+    int fd;
+    uint64_t size;
+    uint8_t* region;
 } NameDB;
 
 typedef struct {
-  int fd;
-  uint8_t* region;
-  uint64_t max_size;
-  uint64_t current_size;
-  NameDB* names;
-  GHashTable* index;
+    int fd;
+    uint8_t* region;
+    uint64_t max_size;
+    uint64_t current_size;
+    NameDB* names;
+    GHashTable* index;
 } CounterDB;
 
 
 typedef struct {
-  uint64_t number;
-  uint64_t last_offset;
+    uint64_t number;
+    uint64_t last_offset;
 } DBHeader;
 
 typedef struct {
-  uint64_t count;
-  GQuark name_quark;
+    uint64_t count;
+    GQuark name_quark;
 } Counter;
 
 void new_namedb(NameDB* db, int fd, uint8_t* region, uint64_t size);
