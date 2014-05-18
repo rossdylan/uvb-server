@@ -1,10 +1,11 @@
 PREFIX := /usr/local
 CFLAGS := -I./include
+CFLAGS += -Wall -Wextra -O4
 ifeq ($(CC),gcc)
     CFLAGS += -std=c11 -ggdb3
 endif
 ifeq ($(CC),clang)
-    CFLAGS += -ggdb
+    CFLAGS += -ggdb -Weverything
 endif
 
 CFLAGS += $(shell pkg-config --cflags glib-2.0 libevent)
