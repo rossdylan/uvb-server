@@ -117,9 +117,12 @@ void uvb_route_dispatch(struct evhttp_request* req, void* arg) {
     enum evhttp_cmd_type cmdtype = evhttp_request_get_command(req);
     if(cmdtype == EVHTTP_REQ_POST) {
         const char* strURI = evhttp_request_get_uri(req);
-        const struct envhttp_uri* uri = evhttp_uri_parse(strURI);
-        char* path = evhttp_uri_get_path(uri);
-
+        struct evhttp_uri* uri;
+        if((uri = evhttp_uri_parse(strURI)) == NULL) {
+            evhttp_send_reply(req, 500, "Bad URI", NULL);
+            return;
+        }
+        char* path = (char* )evhttp_uri_get_path(uri);
         int nsegs = ntok(path, "/");
         char** segs = split(path, "/", nsegs);
         // this is most likely /<username>
