@@ -1,3 +1,4 @@
+PREFIX := /usr/local
 CFLAGS := -I./include
 ifeq ($(CC),gcc)
     CFLAGS += -std=c11 -ggdb3
@@ -15,11 +16,11 @@ all:
 	$(CC) $(CFLAGS) $(LIBRARIES) -o $(EXECUTABLE) $(SOURCE)
 
 install:
-	cp $(EXECUTABLE) /usr/local/bin/$(EXECUTABLE)
+	install -D $(EXECUTABLE) $(PREFIX)/bin/$(EXECUTABLE)
 
 clean:
 	$(RM) $(EXECUTABLE) counters.db names.db
 
 uninstall:
-	$(RM) /usr/local/bin/$(EXECUTABLE)
+	$(RM) $(PREFIX)/bin/$(EXECUTABLE)
 
