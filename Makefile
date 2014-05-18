@@ -1,5 +1,11 @@
-CC := clang
-CFLAGS := -g -I./include
+CFLAGS := -I./include
+ifeq ($(CC),gcc)
+    CFLAGS += -std=c11 -ggdb3
+endif
+ifeq ($(CC),clang)
+    CFLAGS += -ggdb
+endif
+
 CFLAGS += $(shell pkg-config --cflags glib-2.0 libevent)
 LIBRARIES := $(shell pkg-config --libs glib-2.0 libevent)
 SOURCE := $(wildcard src/*.c)
@@ -12,7 +18,7 @@ install:
 	cp $(EXECUTABLE) /usr/local/bin/$(EXECUTABLE)
 
 clean:
-	rm $(EXECUTABLE) counters.db names.db
+	$(RM) $(EXECUTABLE) counters.db names.db
 
 uninstall:
 	$(RM) /usr/local/bin/$(EXECUTABLE)
