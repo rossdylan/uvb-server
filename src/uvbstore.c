@@ -280,7 +280,7 @@ NameDB* load_names(size_t size) {
         exit(EXIT_FAILURE);
     }
     void* region;
-    if((region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == NULL) {
+    if((region = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED) {
         perror("mmap: NameDB Region");
         exit(EXIT_FAILURE);
     }
