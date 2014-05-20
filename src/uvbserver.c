@@ -10,7 +10,7 @@
 
 
 
-int ntok(char* str, const char* delim) {
+uint64_t ntok(char* str, const char* delim) {
     //XXX(rossdylan) I'm really tired, there is probably a better way to this
     size_t size = strlen(str)+1;
     char* copied;
@@ -20,9 +20,14 @@ int ntok(char* str, const char* delim) {
     }
     memmove(copied, str,  sizeof(char) * size);
 
-    int num = 0;
+    uint64_t num = 0;
     char* token = strtok(copied, delim);
-    while(token != NULL) {
+    while(token != NULL) { 
+        if(UINT64_MAX - 1 < num) {
+            fprintf(stderr, "Some one tried to overflow tokenizer\n");
+            num = 0;
+            break;
+        }
         num++;
         token = strtok(NULL, delim);
     }
@@ -34,7 +39,7 @@ int ntok(char* str, const char* delim) {
 /**
  * Make an array of strings holding all tokens in a string
  */
-char** split(char* str, const char* delim, int n) {
+char** split(char* str, const char* delim, uint64_t n) {
     //XXX(rossdylan) I'm really tired, there is probably a better way to this
     size_t size = strlen(str)+1;
     char* copied;
@@ -69,8 +74,8 @@ char** split(char* str, const char* delim, int n) {
 /**
  * Free an array of strings of the given size
  */
-void free_split(char** s, int size) {
-    for(int i=0; i<size; i++) {
+void free_split(char** s, uint64_t size) {
+    for(uint64_t i=0; i<size; i++) {
         free(s[i]);
         s[i] = NULL;
     }
@@ -85,7 +90,7 @@ void free_split(char** s, int size) {
  *  setting the default route handler to uvb_unknown_route
  *  tell evhttp where to listen
  */
-void new_uvbserver(UVBServer* serv, struct event_base* base, char* addr, int port, CounterDB* db) {
+void new_uvbserver(UVBServer* serv, struct event_base* base, char* addr, uint16_t port, CounterDB* db) {
     serv->database = db;
     serv->http = evhttp_new(base);
     evhttp_set_cb(serv->http, "/", uvb_route_display, serv->database);
@@ -123,7 +128,14 @@ void uvb_route_dispatch(struct evhttp_request* req, void* arg) {
             return;
         }
         char* path = (char* )evhttp_uri_get_path(uri);
-        int nsegs = ntok(path, "/");
+        uint64_t nsegs = ntok(path, "/");
+        //given a weird address or ntok was overflowed
+        if(nsegs == 0) {
+            evhttp_send_reply(req, 500, "Internal Server Error", NULL);
+            evhttp_uri_free(uri);
+            uri = NULL;
+            return;
+        }
         char** segs = split(path, "/", nsegs);
         // this is most likely /<username>
         if(nsegs == 1) {
@@ -165,7 +177,7 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
     enum evhttp_cmd_type cmdtype = evhttp_request_get_command(req);
     if(cmdtype == EVHTTP_REQ_GET) {
         struct evbuffer* evb = evbuffer_new();
-        int ncounters = num_counters(db);
+        uint64_t ncounters = num_counters(db);
         evbuffer_add_printf(evb, "<html>\
                 <title> Welcome to Ultimate Victory Battle </title>\
                 <p>\n\
@@ -182,16 +194,15 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
             //TODO(rossdylan) I need to compare the ways I can get a array of names
             //one goes to disk with NamesDB and one rips them out of the GHashTable
             char** names = counter_names(db);
-            char* base_fmt = "<b>%s:</b> %lu <br />\n";
             uint64_t topCounter = 0;
-            char* topName = "";
-            for(int i=0; i<ncounters; ++i) {
+            const char* topName = "";
+            for(uint64_t i=0; i<ncounters; ++i) {
                 Counter* counter = get_counter(db, names[i]);
                 if(counter->count > topCounter) {
                     topName = names[i];
                     topCounter = counter->count;
                 }
-                evbuffer_add_printf(evb, base_fmt, names[i], get_counter(db, names[i])->count);
+                evbuffer_add_printf(evb, "<b>%s:</b> %lu <br />\n", names[i], get_counter(db, names[i])->count);
             }
             evbuffer_add_printf(evb, "Current Winner is: <b>%s</b><br />\n", topName);
             free_names(names, ncounters);

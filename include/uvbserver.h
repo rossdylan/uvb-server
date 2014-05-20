@@ -12,13 +12,13 @@ typedef struct {
 
 typedef struct {
     struct evhttp* http;
-    struct evhttp_bound_socket *handle;
+    struct evhttp_bound_socket* handle;
     char* addr;
-    int port;
     CounterDB* database;
+    uint16_t port;
 } UVBServer;
 
-void new_uvbserver(UVBServer* serv, struct event_base* base, char* addr, int port, CounterDB* database);
+void new_uvbserver(UVBServer* serv, struct event_base* base, char* addr, uint16_t port, CounterDB* database);
 void free_uvbserver(UVBServer* serv);
 
 /**
@@ -35,4 +35,22 @@ void uvb_route_dispatch(struct evhttp_request* req, void* arg);
  * the void* arg argument contains the CounterDB
  */
 void uvb_route_display(struct evhttp_request* req, void* arg);
+
+/**
+ * Return the number of tokens that will be created using ntok
+ * on the given string with the given deliminator. If someone manages to overflow
+ * a uint64_t it will return 0;
+ */
+uint64_t ntok(char* str, const char* delim);
+
+/**
+ * Create an array of strings representing all the tokens made from the string
+ */
+char** split(char* str, const char* delim, uint64_t n);
+
+/**
+ * Clean up the array created by split
+ */
+void free_split(char** s, uint64_t size);
+
 #endif
