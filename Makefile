@@ -1,6 +1,6 @@
 PREFIX := /usr/local
 CFLAGS := -I./include
-CFLAGS += -Wall -Wextra -O4
+CFLAGS += -Wall -Wextra -fPIC -pedantic
 ifeq ($(CC),gcc)
     CFLAGS += -std=c11 -ggdb3
 endif
