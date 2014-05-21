@@ -139,7 +139,7 @@ void load_index(CounterDB* db) {
         free_names(names, name_length);
     }
     for (uint64_t index = 0; index < header->number; ++index) {
-        current = (Counter* )(db->region + sizeof(DBHeader) + (index * sizeof(Counter)) + 1);
+        current = (Counter* )((void* )((char* )db->region + sizeof(DBHeader) + (index * sizeof(Counter)) + 1));
         const char* name = g_quark_to_string(current->name_quark);
         g_hash_table_insert(db->index, (gpointer)name, current);
     }
@@ -185,7 +185,7 @@ Counter* add_counter(CounterDB* db, const char* name) {
         fprintf(stderr, "expanded: cur_size=%lu max_size=%lu\n", db->current_size, db->max_size);
     }
     header = (DBHeader* )db->region;
-    Counter* new_counter = (Counter* )(db->region + header->last_offset + 1);
+    Counter* new_counter = (Counter* )((void* )((char* )db->region + header->last_offset + 1));
     memset(new_counter, 0, sizeof(Counter));
     new_counter->count = 0;
     new_counter->name_quark = g_quark_from_string(name);
@@ -336,10 +336,11 @@ void add_name(NameDB* db, const char* name) {
     //XXX(rossdylan) make sure we don't add a name that goes over the end of our db
     DBHeader* header = (DBHeader* )db->region;
     uint64_t nameSize = (strlen(name) + 1) * sizeof(char);
-    uint64_t* savedNameSize = (uint64_t* )(db->region + header->last_offset + 1);
+    uint64_t* savedNameSize = (uint64_t* )((void* )((char* )db->region + header->last_offset + 1));
     memset(savedNameSize, 0, sizeof(uint64_t));
     *savedNameSize = nameSize;
-    char* savedName = (char* )(db->region + header->last_offset + sizeof(uint64_t) + 1);
+    void* savedNamePtr = (void* )((char* )db->region + header->last_offset + sizeof(uint64_t) + 1);
+    char* savedName = (char* )savedNamePtr;
     memset(savedName, 0, nameSize);
     memmove(savedName, name, nameSize);
     header->last_offset += sizeof(uint64_t) + nameSize;
@@ -371,7 +372,8 @@ char** get_names(NameDB* db) {
     }
     uint64_t offset = sizeof(DBHeader);
     for (uint64_t i = 0; i < length; ++i) {
-        uint64_t size = *(uint64_t* )(db->region + offset + 1);
+        void* sizePtr = (void* )(((char* )db->region) + offset + 1);
+        uint64_t size = *((uint64_t *)sizePtr);
         if((names[i] = calloc(1, size)) == NULL) {
             perror("calloc: *name");
             exit(EXIT_FAILURE);
