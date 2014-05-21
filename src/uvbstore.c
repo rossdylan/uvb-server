@@ -179,16 +179,19 @@ void unload_database(CounterDB* db) {
  */
 Counter* add_counter(CounterDB* db, const char* name) {
     fprintf(stderr, "current_size=%lu max_size=%lu\n", db->current_size + (int64_t)sizeof(Counter), db->max_size);
-    if(db->current_size + sizeof(Counter) >= db->max_size || db->names->current_size + sizeof(uint64_t) + (strlen(name) + 1 * sizeof(char)) >= db->names->max_size) {
-        fprintf(stderr, "Expanding DB");
-        expand_database(db);
-    }
     DBHeader* header = (DBHeader* )db->region;
-    Counter* new_counter = (Counter* )db->region + ((header->number * sizeof(Counter)) + sizeof(DBHeader) + 1);
+    fprintf(stderr, "%p > %p ?\n", db->region + header->last_offset + 1, db->region+db->max_size);
+    if((Counter* )(db->region + header->last_offset + 1) >= (Counter* )(db->region+db->max_size)) {
+        fprintf(stderr, "Expanding DB\n");
+        expand_database(db);
+        fprintf(stderr, "expanded: cur_size=%lu max_size=%lu", db->current_size, db->max_size);
+    }
+    Counter* new_counter = (Counter* )(db->region + header->last_offset + 1);
     memset(new_counter, 0, sizeof(Counter));
     new_counter->count = 0;
     new_counter->name_quark = g_quark_from_string(name);
     header->number++;
+    header->last_offset = header->last_offset + sizeof(Counter);
     size_t nlen = (strlen(name) + 1);
     char* localname = calloc(nlen, sizeof(char));
     memmove(localname, name, sizeof(char) * nlen);
@@ -328,10 +331,10 @@ void add_name(NameDB* db, const char* name) {
     fprintf(stderr, "add_name: current_size=%lu max_size=%lu:\n", db->current_size, db->max_size);
     DBHeader* header = (DBHeader* )db->region;
     uint64_t nameSize = (strlen(name) + 1) * sizeof(char);
-    uint64_t* savedNameSize = (uint64_t* )db->region + header->last_offset + 1;
+    uint64_t* savedNameSize = (uint64_t* )(db->region + header->last_offset + 1);
     memset(savedNameSize, 0, sizeof(uint64_t));
     *savedNameSize = nameSize;
-    char* savedName = (char* )db->region + header->last_offset + sizeof(uint64_t) + 1;
+    char* savedName = (char* )(db->region + header->last_offset + sizeof(uint64_t) + 1);
     memset(savedName, 0, nameSize);
     memmove(savedName, name, nameSize);
     header->last_offset += sizeof(uint64_t) + nameSize;
