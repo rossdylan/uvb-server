@@ -9,7 +9,6 @@
  */
 
 
-
 uint64_t ntok(char* str, const char* delim) {
     //XXX(rossdylan) I'm really tired, there is probably a better way to this
     size_t size = strlen(str)+1;
@@ -96,6 +95,10 @@ void new_uvbserver(UVBServer* serv, struct event_base* base, char* addr, uint16_
     evhttp_set_cb(serv->http, "/", uvb_route_display, serv->database);
     evhttp_set_gencb(serv->http, uvb_route_dispatch, serv->database);
     serv->handle = evhttp_bind_socket_with_handle(serv->http, addr, port);
+    struct timeval rps_timer = {1, 0};
+    struct event* rpsevent;
+    rpsevent = evtimer_new(base, calculate_rps, db);
+    evtimer_add(rpsevent, &rps_timer);
     if(!serv->handle) {
         exit(EXIT_FAILURE);
     }
@@ -202,7 +205,7 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
                     topName = names[i];
                     topCounter = counter->count;
                 }
-                evbuffer_add_printf(evb, "<b>%s:</b> %lu <br />\n", names[i], get_counter(db, names[i])->count);
+                evbuffer_add_printf(evb, "<b>%s:</b> %lu - %lu req/s<br />\n", names[i], counter->count, counter->rps);
             }
             evbuffer_add_printf(evb, "Current Winner is: <b>%s</b><br />\n", topName);
             free_names(names, ncounters);
@@ -214,4 +217,16 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
     else {
         evhttp_send_reply(req, 403, "Not Allowed", NULL);
     }
+}
+
+void calculate_rps(int fd, short event, void *arg) {
+    CounterDB* db = (CounterDB* )arg;
+    uint64_t ncounters = num_counters(db);
+    char** names = counter_names(db);
+    for(uint64_t i=0; i<ncounters; i++) {
+        Counter* counter = get_counter(db, names[i]);
+        counter->rps = counter->count - counter->rps_prevcount;
+        counter->rps_prevcount = counter->count;
+    }
+    free_names(names, ncounters);
 }

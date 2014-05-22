@@ -188,6 +188,8 @@ Counter* add_counter(CounterDB* db, const char* name) {
     Counter* new_counter = (Counter* )((void* )((char* )db->region + header->last_offset + 1));
     memset(new_counter, 0, sizeof(Counter));
     new_counter->count = 0;
+    new_counter->rps = 0;
+    new_counter->rps_prevcount = 0;
     new_counter->name_quark = g_quark_from_string(name);
     header->number++;
     header->last_offset = header->last_offset + sizeof(Counter);

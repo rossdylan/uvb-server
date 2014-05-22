@@ -36,6 +36,8 @@ typedef struct {
 
 typedef struct {
     uint64_t count;
+    uint64_t rps;
+    uint64_t rps_prevcount;
     GQuark name_quark;
 } Counter;
 
