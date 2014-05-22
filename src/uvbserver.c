@@ -96,9 +96,8 @@ void new_uvbserver(UVBServer* serv, struct event_base* base, char* addr, uint16_
     evhttp_set_gencb(serv->http, uvb_route_dispatch, serv->database);
     serv->handle = evhttp_bind_socket_with_handle(serv->http, addr, port);
     struct timeval rps_timer = {1, 0};
-    struct event* rpsevent;
-    rpsevent = evtimer_new(base, calculate_rps, db);
-    evtimer_add(rpsevent, &rps_timer);
+    struct event* rpsevent = event_new(base, -1, EV_PERSIST, calculate_rps, db);
+    event_add(rpsevent, &rps_timer);
     if(!serv->handle) {
         exit(EXIT_FAILURE);
     }
@@ -205,7 +204,7 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
                     topName = names[i];
                     topCounter = counter->count;
                 }
-                evbuffer_add_printf(evb, "<b>%s:</b> %lu - %lu req/s<br />\n", names[i], counter->count, counter->rps);
+                evbuffer_add_printf(evb, "<b>%s:</b> %lu - %lu req/s <br />\n", names[i], counter->count, counter->rps);
             }
             evbuffer_add_printf(evb, "Current Winner is: <b>%s</b><br />\n", topName);
             free_names(names, ncounters);
