@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <event2/event.h>
 #include <event2/http.h>
+#include <signal.h>
 
 
 static void usage(char* name) {
@@ -49,6 +50,13 @@ int main(int argc, char** argv) {
     }
     struct event_base* base = event_base_new();
     new_uvbserver(server, base, argv[1], validPort, database);
+    struct sigaction sa;
+    sa.sa_handler = SIG_IGN;
+    sa.sa_flags = 0;
+    if (sigemptyset(&sa.sa_mask) == -1 || sigaction(SIGPIPE, &sa, 0) == -1) {
+        perror("failed to ignore SIGPIPE; sigaction");
+        exit(EXIT_FAILURE);
+    }
     event_base_dispatch(base);
     free_uvbserver(server);
     return 0;
