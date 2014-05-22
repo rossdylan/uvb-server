@@ -129,7 +129,7 @@ void uvb_route_dispatch(struct evhttp_request* req, void* arg) {
             evhttp_send_reply(req, 500, "Bad URI", NULL);
             return;
         }
-        char* path = (char* )evhttp_uri_get_path(uri);
+        char* path = evhttp_decode_uri((char* )evhttp_uri_get_path(uri));
         uint64_t nsegs = ntok(path, "/");
         //given a weird address or ntok was overflowed
         if(nsegs == 0) {
