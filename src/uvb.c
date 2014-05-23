@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
     struct event_base* base = event_base_new();
-    new_uvbserver(server, base, argv[1], validPort, database);
+    uvbserver_new(server, base, argv[1], validPort, database);
     struct sigaction sa;
     sa.sa_handler = SIG_IGN;
     sa.sa_flags = 0;
@@ -58,6 +58,6 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
     event_base_dispatch(base);
-    free_uvbserver(server);
+    uvbserver_free(server);
     return 0;
 }

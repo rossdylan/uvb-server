@@ -18,8 +18,8 @@ typedef struct {
     uint16_t port;
 } UVBServer;
 
-void new_uvbserver(UVBServer* serv, struct event_base* base, char* addr, uint16_t port, CounterDB* database);
-void free_uvbserver(UVBServer* serv);
+void uvbserver_new(UVBServer* serv, struct event_base* base, char* addr, uint16_t port, CounterDB* database);
+void uvbserver_free(UVBServer* serv);
 
 /**
  * the void* arg argument contains the CounterDB
@@ -28,13 +28,13 @@ void free_uvbserver(UVBServer* serv);
  * /register/<name> - Register a new user
  * /<name> - increment counter
  */
-void uvb_route_dispatch(struct evhttp_request* req, void* arg);
+void uvbserver_route_dispatch(struct evhttp_request* req, void* arg);
 
 /**
  * display the score counters
  * the void* arg argument contains the CounterDB
  */
-void uvb_route_display(struct evhttp_request* req, void* arg);
+void uvbserver_route_display(struct evhttp_request* req, void* arg);
 
 /**
  * Return the number of tokens that will be created using ntok
@@ -53,5 +53,5 @@ char** split(char* str, const char* delim, uint64_t n);
  */
 void free_split(char** s, uint64_t size);
 
-void calculate_rps(int fd, short event, void *arg);
+void uvbserver_calculate_rps(int fd, short event, void *arg);
 #endif

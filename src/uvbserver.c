@@ -89,14 +89,14 @@ void free_split(char** s, uint64_t size) {
  *  setting the default route handler to uvb_unknown_route
  *  tell evhttp where to listen
  */
-void new_uvbserver(UVBServer* serv, struct event_base* base, char* addr, uint16_t port, CounterDB* db) {
+void uvbserver_new(UVBServer* serv, struct event_base* base, char* addr, uint16_t port, CounterDB* db) {
     serv->database = db;
     serv->http = evhttp_new(base);
-    evhttp_set_cb(serv->http, "/", uvb_route_display, serv->database);
-    evhttp_set_gencb(serv->http, uvb_route_dispatch, serv->database);
+    evhttp_set_cb(serv->http, "/", uvbserver_route_display, serv->database);
+    evhttp_set_gencb(serv->http, uvbserver_route_dispatch, serv->database);
     serv->handle = evhttp_bind_socket_with_handle(serv->http, addr, port);
     struct timeval rps_timer = {1, 0};
-    struct event* rpsevent = event_new(base, -1, EV_PERSIST, calculate_rps, db);
+    struct event* rpsevent = event_new(base, -1, EV_PERSIST, uvbserver_calculate_rps, db);
     event_add(rpsevent, &rps_timer);
     if(!serv->handle) {
         exit(EXIT_FAILURE);
@@ -107,7 +107,7 @@ void new_uvbserver(UVBServer* serv, struct event_base* base, char* addr, uint16_
 /**
  * Free all the evhttp structs contained within UVBServer and then free the UVBServer struct
  */
-void free_uvbserver(UVBServer* serv) {
+void uvbserver_free(UVBServer* serv) {
     free(serv->handle);
     serv->handle = NULL;
     free(serv->http);
@@ -119,7 +119,7 @@ void free_uvbserver(UVBServer* serv) {
 }
 
 
-void uvb_route_dispatch(struct evhttp_request* req, void* arg) {
+void uvbserver_route_dispatch(struct evhttp_request* req, void* arg) {
     CounterDB* db = (CounterDB* )arg;
     enum evhttp_cmd_type cmdtype = evhttp_request_get_command(req);
     if(cmdtype == EVHTTP_REQ_POST) {
@@ -174,7 +174,7 @@ void uvb_route_dispatch(struct evhttp_request* req, void* arg) {
     }
 }
 
-void uvb_route_display(struct evhttp_request* req, void* arg) {
+void uvbserver_route_display(struct evhttp_request* req, void* arg) {
     CounterDB* db = (CounterDB* )arg;
     enum evhttp_cmd_type cmdtype = evhttp_request_get_command(req);
     if(cmdtype == EVHTTP_REQ_GET) {
@@ -218,7 +218,7 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
     }
 }
 
-void calculate_rps(int fd, short event, void *arg) {
+void uvbserver_calculate_rps(int fd, short event, void *arg) {
     CounterDB* db = (CounterDB* )arg;
     uint64_t ncounters = counterdb_length(db);
     char** names = counterdb_get_names(db);
