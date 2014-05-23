@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
         perror("calloc: main: database");
         exit(EXIT_FAILURE);
     }
-    load_database(database, dbsize);
+    counterdb_load(database, dbsize);
     UVBServer* server;
     if((server = calloc(1, sizeof(UVBServer))) == NULL) {
         perror("calloc: UVBServer");

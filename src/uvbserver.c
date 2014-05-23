@@ -141,8 +141,8 @@ void uvb_route_dispatch(struct evhttp_request* req, void* arg) {
         char** segs = split(path, "/", nsegs);
         // this is most likely /<username>
         if(nsegs == 1) {
-            if(counter_exists(db, segs[0])) {
-                increment_counter(db, segs[0]);
+            if(counterdb_counter_exists(db, segs[0])) {
+                counterdb_increment_counter(db, segs[0]);
                 evhttp_send_reply(req, 200, "OK", NULL);
             }
             else {
@@ -153,9 +153,9 @@ void uvb_route_dispatch(struct evhttp_request* req, void* arg) {
             // handle /register/<username>
             if(nsegs == 2) {
                 if(strcmp(segs[0], "register") == 0) {
-                    if(!counter_exists(db, segs[1])) {
+                    if(!counterdb_counter_exists(db, segs[1])) {
                         fprintf(stderr, "Created new counter for %s\n", segs[1]);
-                        add_counter(db, segs[1]);
+                        counterdb_add_counter(db, segs[1]);
                         evhttp_send_reply(req, 201, "User Created", NULL);
                     }
                     else {
@@ -179,7 +179,7 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
     enum evhttp_cmd_type cmdtype = evhttp_request_get_command(req);
     if(cmdtype == EVHTTP_REQ_GET) {
         struct evbuffer* evb = evbuffer_new();
-        uint64_t ncounters = num_counters(db);
+        uint64_t ncounters = counterdb_length(db);
         evbuffer_add_printf(evb, "<html>\
                 <title> Welcome to Ultimate Victory Battle </title>\
                 <p>\n\
@@ -195,11 +195,11 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
             //XXX(rossdylan) shit man lotta calloc/free going down here
             //TODO(rossdylan) I need to compare the ways I can get a array of names
             //one goes to disk with NamesDB and one rips them out of the GHashTable
-            char** names = counter_names(db);
+            char** names = counterdb_get_names(db);
             uint64_t topCounter = 0;
             const char* topName = "";
             for(uint64_t i=0; i<ncounters; ++i) {
-                Counter* counter = get_counter(db, names[i]);
+                Counter* counter = counterdb_get_counter(db, names[i]);
                 if(counter->count > topCounter) {
                     topName = names[i];
                     topCounter = counter->count;
@@ -220,10 +220,10 @@ void uvb_route_display(struct evhttp_request* req, void* arg) {
 
 void calculate_rps(int fd, short event, void *arg) {
     CounterDB* db = (CounterDB* )arg;
-    uint64_t ncounters = num_counters(db);
-    char** names = counter_names(db);
+    uint64_t ncounters = counterdb_length(db);
+    char** names = counterdb_get_names(db);
     for(uint64_t i=0; i<ncounters; i++) {
-        Counter* counter = get_counter(db, names[i]);
+        Counter* counter = counterdb_get_counter(db, names[i]);
         counter->rps = counter->count - counter->rps_prevcount;
         counter->rps_prevcount = counter->count;
     }

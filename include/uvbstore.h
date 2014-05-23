@@ -41,36 +41,36 @@ typedef struct {
     GQuark name_quark;
 } Counter;
 
-void new_namedb(NameDB* db, int fd, void* region, size_t size);
-NameDB* load_names(size_t size);
-void unload_names(NameDB* db);
+void namedb_new(NameDB* db, int fd, void* region, size_t size);
+NameDB* namedb_load(size_t size);
+void namedb_unload(NameDB* db);
 
-void add_name(NameDB* db, const char* name);
-uint64_t names_length(NameDB* db);
-char** get_names(NameDB* db);
+void namedb_add_name(NameDB* db, const char* name);
+uint64_t namedb_length(NameDB* db);
+char** namedb_get_names(NameDB* db);
 void free_names(char** names, uint64_t len);
 
 
-void new_counterdb(CounterDB* db, int fd, void* region, size_t size, size_t cur_size);
-void load_database(CounterDB* database, size_t size);
-void unload_database(CounterDB* db);
+void counterdb_new(CounterDB* db, int fd, void* region, size_t size, size_t cur_size);
+void counterdb_load(CounterDB* database, size_t size);
+void counterdb_unload(CounterDB* db);
 
-Counter* add_counter(CounterDB* db, const char* name);
-Counter* get_counter(CounterDB* db, const char* name);
-void increment_counter(CounterDB* db, const char* name);
-bool counter_exists(CounterDB* db, const char* name);
-uint64_t num_counters(CounterDB* db);
-char** counter_names(CounterDB* db);
+Counter* counterdb_add_counter(CounterDB* db, const char* name);
+Counter* counterdb_get_counter(CounterDB* db, const char* name);
+void counterdb_increment_counter(CounterDB* db, const char* name);
+bool counterdb_counter_exists(CounterDB* db, const char* name);
+uint64_t counterdb_length(CounterDB* db);
+char** counterdb_get_names(CounterDB* db);
 
 /**
  * Load the names stored in the namesdb into the GHashTable
  */
-void load_index(CounterDB* cdb);
+void counterdb_load_index(CounterDB* cdb);
 
 /**
  * Expand the given file by 10 * _SC_PAGE_SIZE
  */
-void expand_database(CounterDB* db);
+void counterdb_expand(CounterDB* db);
 
 /**
  * Get the size of a file
