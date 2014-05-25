@@ -195,19 +195,22 @@ void uvbserver_route_display(struct evhttp_request* req, void* arg) {
             //XXX(rossdylan) shit man lotta calloc/free going down here
             //TODO(rossdylan) I need to compare the ways I can get a array of names
             //one goes to disk with NamesDB and one rips them out of the GHashTable
-            char** names = counterdb_get_names(db);
+            Counter** counters = counterdb_get_counters(db);
             uint64_t topCounter = 0;
             const char* topName = "";
+            const char* name;
+            Counter* counter;
             for(uint64_t i=0; i<ncounters; ++i) {
-                Counter* counter = counterdb_get_counter(db, names[i]);
+                counter = counters[i];
+                name = g_quark_to_string(counter->name_quark);
                 if(counter->count > topCounter) {
-                    topName = names[i];
+                    topName = name;
                     topCounter = counter->count;
                 }
-                evbuffer_add_printf(evb, "<b>%s:</b> %lu - %lu req/s <br />\n", names[i], counter->count, counter->rps);
+                evbuffer_add_printf(evb, "<b>%s:</b> %lu - %lu req/s <br />\n", name, counter->count, counter->rps);
             }
+            free(counters);
             evbuffer_add_printf(evb, "Current Winner is: <b>%s</b><br />\n", topName);
-            free_names(names, ncounters);
         }
         evbuffer_add_printf(evb, "</html>\n");
         evhttp_send_reply(req, 200, "OK", evb);
@@ -221,11 +224,12 @@ void uvbserver_route_display(struct evhttp_request* req, void* arg) {
 void uvbserver_calculate_rps(int fd, short event, void *arg) {
     CounterDB* db = (CounterDB* )arg;
     uint64_t ncounters = counterdb_length(db);
-    char** names = counterdb_get_names(db);
+    Counter** counters = counterdb_get_counters(db);
+    Counter* counter;
     for(uint64_t i=0; i<ncounters; i++) {
-        Counter* counter = counterdb_get_counter(db, names[i]);
+        counter = counters[i];
         counter->rps = counter->count - counter->rps_prevcount;
         counter->rps_prevcount = counter->count;
     }
-    free_names(names, ncounters);
+    free(counters);
 }

@@ -136,7 +136,7 @@ void counterdb_load_index(CounterDB* db) {
         for (uint64_t i = 0; i < name_length; ++i) {
             g_quark_from_string(names[i]);
         }
-        free_names(names, name_length);
+        free_names(names);
     }
     for (uint64_t index = 0; index < header->number; ++index) {
         current = (Counter* )((void* )((char* )db->region + sizeof(DBHeader) + (index * sizeof(Counter)) + 1));
@@ -387,11 +387,7 @@ char** namedb_get_names(NameDB* db) {
 /**
  * Go through the names 2D array and free everything
  */
-void free_names(char** names, uint64_t len) {
-    for (uint64_t i = 0; i < len; ++i) {
-        free(names[i]);
-        names[i] = NULL;
-    }
+void free_names(char** names) {
     free(names);
     names = NULL;
 }
@@ -409,13 +405,23 @@ char** counterdb_get_names(CounterDB* db) {
     GList* nameList = g_hash_table_get_keys(db->index);
     for(unsigned int i=0; i<g_list_length(nameList); ++i) {
         char* name = g_list_nth_data(nameList, i);
-        size_t nsize = (strlen(name) + 1) * sizeof(char);
-        if((names[i] = calloc(nsize, sizeof(char))) == NULL) {
-            perror("calloc: counter_names: name");
-            exit(EXIT_FAILURE);
-        }
-        memmove(names[i], name, nsize);
+        names[i] = name;
     }
     g_list_free(nameList);
     return names;
 }
+
+Counter** counterdb_get_counters(CounterDB* db) {
+    Counter** counters;
+    if((counters = calloc(counterdb_length(db), sizeof(Counter*))) == NULL) {
+        perror("malloc: get_counters");
+        exit(EXIT_FAILURE);
+    }
+    GList* counterList = g_hash_table_get_values(db->index);
+    for(unsigned int i=0; i<g_list_length(counterList); ++i) {
+        counters[i] = g_list_nth_data(counterList, i);
+    }
+    g_list_free(counterList);
+    return counters;
+}
+

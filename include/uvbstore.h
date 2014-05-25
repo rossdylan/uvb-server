@@ -48,7 +48,7 @@ void namedb_unload(NameDB* db);
 void namedb_add_name(NameDB* db, const char* name);
 uint64_t namedb_length(NameDB* db);
 char** namedb_get_names(NameDB* db);
-void free_names(char** names, uint64_t len);
+void free_names(char** names);
 
 
 void counterdb_new(CounterDB* db, int fd, void* region, size_t size, size_t cur_size);
@@ -81,5 +81,10 @@ off_t get_fsize(int fd);
  * Truncate a file to the given size
  */
 void truncate_file(int fd, off_t size);
+
+/**
+ * Get an array of all counters stored in the db
+ */
+Counter** counterdb_get_counters(CounterDB* db);
 #endif
 
