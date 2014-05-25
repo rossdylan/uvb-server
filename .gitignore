@@ -1,3 +1,4 @@
 *.out.*
 *.db
+*.o
 uvb-server
