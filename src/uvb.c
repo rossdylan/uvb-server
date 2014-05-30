@@ -37,12 +37,7 @@ int main(int argc, char** argv) {
     }
     size_t dbsize = (size_t)tenpages;
 
-    CounterDB* database;
-    if((database = calloc(1, sizeof(CounterDB))) == NULL) {
-        perror("calloc: main: database");
-        exit(EXIT_FAILURE);
-    }
-    counterdb_load(database, dbsize);
+    CounterDB* database = init_database(dbsize, dbsize);
     UVBServer* server;
     if((server = calloc(1, sizeof(UVBServer))) == NULL) {
         perror("calloc: UVBServer");

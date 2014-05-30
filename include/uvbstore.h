@@ -13,6 +13,7 @@
 #include <sys/types.h>
 
 typedef struct {
+    GHashTable* hashes;
     void* region;
     size_t max_size;
     size_t current_size;
@@ -38,18 +39,18 @@ typedef struct {
     uint64_t count;
     uint64_t rps;
     uint64_t rps_prevcount;
-    GQuark name_quark;
+    uint64_t name_hash;
 } Counter;
 
 void namedb_new(NameDB* db, int fd, void* region, size_t size);
-NameDB* namedb_load(size_t size);
+void namedb_load(NameDB* db, size_t size);
 void namedb_unload(NameDB* db);
 
 void namedb_add_name(NameDB* db, const char* name);
 uint64_t namedb_length(NameDB* db);
 char** namedb_get_names(NameDB* db);
-void free_names(char** names);
-
+char* namedb_name_from_hash(NameDB* db, uint64_t hash);
+void namedb_expand(NameDB* db);
 
 void counterdb_new(CounterDB* db, int fd, void* region, size_t size, size_t cur_size);
 void counterdb_load(CounterDB* database, size_t size);
@@ -61,6 +62,20 @@ void counterdb_increment_counter(CounterDB* db, const char* name);
 bool counterdb_counter_exists(CounterDB* db, const char* name);
 uint64_t counterdb_length(CounterDB* db);
 char** counterdb_get_names(CounterDB* db);
+/**
+ * Get an array of all counters stored in the db
+ */
+Counter** counterdb_get_counters(CounterDB* db);
+
+/*
+ * passed into g_hash_table_new_full to free the keys which are malloc'd ints
+ */
+void free_name_hash(uint64_t* hash);
+
+/**
+ * Wraps the calls to namedb_load and counterdb_load and returns a fully initialized counterdb
+ */
+CounterDB* init_database(size_t counters_size, size_t names_size);
 
 /**
  * Load the names stored in the namesdb into the GHashTable
@@ -83,8 +98,9 @@ off_t get_fsize(int fd);
 void truncate_file(int fd, off_t size);
 
 /**
- * Get an array of all counters stored in the db
+ * Take the given fd and truncate it to expand it by a predertimaned amount (10 pages)
+ * and return its new size;
  */
-Counter** counterdb_get_counters(CounterDB* db);
+uint64_t expand_file(int fd);
 #endif
 

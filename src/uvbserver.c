@@ -202,7 +202,7 @@ void uvbserver_route_display(struct evhttp_request* req, void* arg) {
             Counter* counter;
             for(uint64_t i=0; i<ncounters; ++i) {
                 counter = counters[i];
-                name = g_quark_to_string(counter->name_quark);
+                name = namedb_name_from_hash(db->names, counter->name_hash);
                 if(counter->count > topCounter) {
                     topName = name;
                     topCounter = counter->count;
