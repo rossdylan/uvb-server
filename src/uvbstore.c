@@ -331,8 +331,6 @@ void namedb_unload(NameDB* db) {
         }
     } while(errno == EINTR);
     g_hash_table_destroy(db->hashes);
-    free(db);
-    db = NULL;
 
 }
 
