@@ -22,7 +22,7 @@ install:
 	install -D $(EXECUTABLE) $(PREFIX)/bin/$(EXECUTABLE)
 
 clean:
-	$(RM) $(EXECUTABLE) counters.db names.db
+	$(RM) $(EXECUTABLE) counters.db names.db $(OBJECTS)
 
 uninstall:
 	$(RM) $(PREFIX)/bin/$(EXECUTABLE)
