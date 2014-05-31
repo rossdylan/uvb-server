@@ -28,7 +28,7 @@ typedef struct {
     size_t current_size;
     void* region;
     int fd;
-    bool gc_changed; // flip to true when the gc has made a change (useful to know when to add things to the fsc)
+    bool gc_changed; // lets us know when the marker has run and found files to be marked
 } CounterDB;
 
 typedef struct {
@@ -44,6 +44,14 @@ typedef struct {
     time_t last_updated;
     bool gc_flag;
 } Counter;
+
+/**
+ * Header that goes before a name in the namesdb
+ */
+typedef struct {
+    uint64_t name_size;
+    bool gc_flag;
+} NameHeader;
 
 void namedb_new(NameDB* db, int fd, void* region, size_t size);
 void namedb_load(NameDB* db, size_t size);
@@ -109,5 +117,10 @@ uint64_t expand_file(int fd);
 
 void counterdb_gc_mark(CounterDB* db);
 void counterdb_fill_fsc(CounterDB* db);
+
+/**
+ * Rewrite the namedb file eliminating all tombstones
+ */
+void namedb_compact(NameDB* db);
 #endif
 

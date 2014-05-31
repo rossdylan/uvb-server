@@ -392,22 +392,23 @@ void namedb_unload(NameDB* db) {
  *  append the size of the given name and the names.db file
  */
 void namedb_add_name(NameDB* db, const char* name) {
-    if(db->current_size + sizeof(uint64_t) + (sizeof(char) * (strlen(name) + 1)) >= db->max_size) {
+    uint64_t name_size = sizeof(char) * (strlen(name) + 1);
+    if(db->current_size + sizeof(NameHeader) + name_size >= db->max_size) {
         namedb_expand(db);
         fprintf(stderr, "expanded namedb: cur_size=%lu max_size=%lu\n", db->current_size, db->max_size);
     }
     DBHeader* header = (DBHeader* )db->region;
-    uint64_t nameSize = (strlen(name) + 1) * sizeof(char);
-    uint64_t* savedNameSize = (uint64_t* )((void* )((char* )db->region + header->last_offset + 1));
-    memset(savedNameSize, 0, sizeof(uint64_t));
-    *savedNameSize = nameSize;
-    void* savedNamePtr = (void* )((char* )db->region + header->last_offset + sizeof(uint64_t) + 1);
+    NameHeader* nheader = (NameHeader* )((void* )((char* )db->region + header->last_offset + 1));
+    memset(nheader, 0, sizeof(NameHeader));
+    nheader->name_size = name_size;
+    nheader->gc_flag = false;
+    void* savedNamePtr = (void* )((char* )db->region + header->last_offset + sizeof(NameHeader) + 1);
     char* savedName = (char* )savedNamePtr;
-    memset(savedName, 0, nameSize);
-    memmove(savedName, name, nameSize);
-    header->last_offset += sizeof(uint64_t) + nameSize;
+    memset(savedName, 0, nheader->name_size);
+    memmove(savedName, name, nheader->name_size);
+    header->last_offset += sizeof(NameHeader) + nheader->name_size;
     header->number++;
-    db->current_size += sizeof(uint64_t) + nameSize;
+    db->current_size += sizeof(NameHeader) + nheader->name_size;
     uint64_t* hash = malloc(sizeof(uint64_t));
     *hash = g_str_hash(name);
     g_hash_table_insert(db->hashes, hash, savedName);
@@ -438,11 +439,12 @@ char** namedb_get_names(NameDB* db) {
     }
     uint64_t offset = sizeof(DBHeader);
     for (uint64_t i = 0; i < length; ++i) {
-        void* sizePtr = (void* )(((char* )db->region) + offset + 1);
-        uint64_t size = *((uint64_t *)sizePtr);
-        char* ondiskName = (char* )db->region + offset + sizeof(uint64_t) + 1;
-        names[i] = ondiskName;
-        offset += sizeof(uint64_t) + size;
+        NameHeader* nheader = (NameHeader* )((void* )((char* )db->region + offset + 1));
+        if(!nheader->gc_flag) {
+            char* ondiskName = (char* )db->region + offset + sizeof(NameHeader) + 1;
+            names[i] = ondiskName;
+        }
+        offset += sizeof(NameHeader) + nheader->name_size;
     }
     return names;
 }
