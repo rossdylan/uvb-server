@@ -96,8 +96,11 @@ void uvbserver_new(UVBServer* serv, struct event_base* base, char* addr, uint16_
     evhttp_set_gencb(serv->http, uvbserver_route_dispatch, serv->database);
     serv->handle = evhttp_bind_socket_with_handle(serv->http, addr, port);
     struct timeval rps_timer = {1, 0};
+    struct timeval gc_timer = {60, 0};
     struct event* rpsevent = event_new(base, -1, EV_PERSIST, uvbserver_calculate_rps, db);
+    struct event* gcevent = event_new(base, -1, EV_PERSIST, uvbserver_run_gc, db);
     event_add(rpsevent, &rps_timer);
+    event_add(gcevent, &gc_timer);
     if(!serv->handle) {
         exit(EXIT_FAILURE);
     }
@@ -154,7 +157,6 @@ void uvbserver_route_dispatch(struct evhttp_request* req, void* arg) {
             if(nsegs == 2) {
                 if(strcmp(segs[0], "register") == 0) {
                     if(!counterdb_counter_exists(db, segs[1])) {
-                        fprintf(stderr, "Created new counter for %s\n", segs[1]);
                         counterdb_add_counter(db, segs[1]);
                         evhttp_send_reply(req, 201, "User Created", NULL);
                     }
@@ -221,7 +223,7 @@ void uvbserver_route_display(struct evhttp_request* req, void* arg) {
     }
 }
 
-void uvbserver_calculate_rps(int fd, short event, void *arg) {
+void uvbserver_calculate_rps(int fd, short event, void* arg) {
     CounterDB* db = (CounterDB* )arg;
     uint64_t ncounters = counterdb_length(db);
     Counter** counters = counterdb_get_counters(db);
@@ -232,4 +234,9 @@ void uvbserver_calculate_rps(int fd, short event, void *arg) {
         counter->rps_prevcount = counter->count;
     }
     free(counters);
+}
+
+void uvbserver_run_gc(int fd, short event, void* arg) {
+    CounterDB* db = (CounterDB* )arg;
+    counterdb_gc_mark(db);
 }

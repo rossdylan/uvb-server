@@ -23,12 +23,13 @@ typedef struct {
 typedef struct {
     NameDB* names;
     GHashTable* index;
+    GQueue* freespace_cache;
     size_t max_size;
     size_t current_size;
     void* region;
     int fd;
+    bool gc_changed; // flip to true when the gc has made a change (useful to know when to add things to the fsc)
 } CounterDB;
-
 
 typedef struct {
     uint64_t number;
@@ -40,6 +41,8 @@ typedef struct {
     uint64_t rps;
     uint64_t rps_prevcount;
     uint64_t name_hash;
+    time_t last_updated;
+    bool gc_flag;
 } Counter;
 
 void namedb_new(NameDB* db, int fd, void* region, size_t size);
@@ -70,7 +73,8 @@ Counter** counterdb_get_counters(CounterDB* db);
 /*
  * passed into g_hash_table_new_full to free the keys which are malloc'd ints
  */
-void free_name_hash(uint64_t* hash);
+void free_int_key(uint64_t* hash);
+void free_string_key(char* hash);
 
 /**
  * Wraps the calls to namedb_load and counterdb_load and returns a fully initialized counterdb
@@ -102,5 +106,8 @@ void truncate_file(int fd, off_t size);
  * and return its new size;
  */
 uint64_t expand_file(int fd);
+
+void counterdb_gc_mark(CounterDB* db);
+void counterdb_fill_fsc(CounterDB* db);
 #endif
 

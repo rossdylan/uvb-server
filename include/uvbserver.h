@@ -53,5 +53,6 @@ char** split(char* str, const char* delim, uint64_t n);
  */
 void free_split(char** s, uint64_t size);
 
-void uvbserver_calculate_rps(int fd, short event, void *arg);
+void uvbserver_calculate_rps(int fd, short event, void* arg);
+void uvbserver_run_gc(int fd, short event, void* arg);
 #endif

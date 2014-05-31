@@ -18,8 +18,10 @@ void counterdb_new(CounterDB* db, int fd, void* region, size_t size, size_t cur_
     db->region = region;
     db->max_size = size;
     db->current_size = cur_size;
-    db->index = g_hash_table_new(g_str_hash, g_str_equal);
+    db->index = g_hash_table_new_full(g_str_hash, g_str_equal, (GDestroyNotify)free_string_key, NULL);
     db->names = NULL;
+    db->gc_changed = true;
+    db->freespace_cache = g_queue_new();
 }
 
 off_t get_fsize(int fd) {
@@ -65,8 +67,13 @@ void namedb_expand(NameDB* db) {
 
 void counterdb_expand(CounterDB* db) {
     uint64_t new_size = expand_file(db->fd);
+    NameDB* names = db->names;
     counterdb_unload(db);
     counterdb_load(db, new_size);
+    db->names = names;
+    counterdb_load_index(db);
+    counterdb_gc_mark(db);
+    counterdb_fill_fsc(db);
 }
 
 CounterDB* init_database(size_t counters_size, size_t names_size) {
@@ -76,6 +83,9 @@ CounterDB* init_database(size_t counters_size, size_t names_size) {
     namedb_load(names, names_size);
     counterdb_load(counters, counters_size);
     counters->names = names;
+    counterdb_load_index(counters);
+    counterdb_gc_mark(counters);
+    counterdb_fill_fsc(counters);
     fprintf(stderr, "Loaded %lu names\n", namedb_length(names));
     fprintf(stderr, "Loaded %lu counters\n", counterdb_length(counters));
     return counters;
@@ -141,7 +151,13 @@ void counterdb_load_index(CounterDB* db) {
     for (uint64_t index = 0; index < header->number; ++index) {
         current = (Counter* )((void* )((char* )db->region + sizeof(DBHeader) + (index * sizeof(Counter)) + 1));
         const char* name = namedb_name_from_hash(db->names, current->name_hash);
-        g_hash_table_insert(db->index, (gpointer)name, current);
+        if(name == NULL) {
+            // we found a counter without a name.. probably a corrupted db
+            continue;
+        }
+        char* memName = calloc(strlen(name) + 1, sizeof(char));
+        memmove(memName, name, (strlen(name) + 1) * sizeof(char));
+        g_hash_table_insert(db->index, (gpointer)memName, current);
     }
 }
 
@@ -167,6 +183,7 @@ void counterdb_unload(CounterDB* db) {
         }
     } while(errno == EINTR);
     g_hash_table_destroy(db->index);
+    g_queue_free(db->freespace_cache);
 }
 
 /**
@@ -179,25 +196,51 @@ void counterdb_unload(CounterDB* db) {
  */
 Counter* counterdb_add_counter(CounterDB* db, const char* name) {
     DBHeader* header = (DBHeader* )db->region;
-    if((db->current_size + sizeof(Counter)) >= db->max_size) {
+    if((db->current_size + sizeof(Counter)) >= db->max_size || (char*)db->region+header->last_offset+1 >= (char*)db->region+db->max_size) {
         counterdb_expand(db);
         fprintf(stderr, "expanded counterdb: cur_size=%lu max_size=%lu\n", db->current_size, db->max_size);
     }
+    bool used_cache = false;
     header = (DBHeader* )db->region;
-    Counter* new_counter = (Counter* )((void* )((char* )db->region + header->last_offset + 1));
+    if(db->gc_changed && g_queue_get_length(db->freespace_cache) == 0) {
+        counterdb_fill_fsc(db);
+        db->gc_changed = false;
+    }
+    Counter* new_counter = NULL;
+    if(g_queue_get_length(db->freespace_cache) == 0) {
+        new_counter = (Counter* )((void* )((char* )db->region + header->last_offset + 1));
+    }
+    else {
+        new_counter = (Counter* )g_queue_pop_head(db->freespace_cache);
+        // this new counter was originally an old counter remove it from our index
+        const char* old_name = namedb_name_from_hash(db->names, new_counter->name_hash);
+        if(old_name != NULL) {
+            if(counterdb_counter_exists(db, old_name)) {
+                g_hash_table_remove(db->index, old_name);
+            }
+        }
+        used_cache = true;
+    }
+    if(db->current_size + sizeof(Counter) >= db->max_size) {
+        fprintf(stderr, "Shit son, you way to big: %p\n", new_counter);
+    }
     memset(new_counter, 0, sizeof(Counter));
     new_counter->count = 0;
     new_counter->rps = 0;
     new_counter->rps_prevcount = 0;
     new_counter->name_hash = g_str_hash(name);
+    new_counter->last_updated = time(NULL); //TODO check rval
     header->number++;
     header->last_offset = header->last_offset + sizeof(Counter);
     size_t nlen = (strlen(name) + 1);
     char* localname = calloc(nlen, sizeof(char));
     memmove(localname, name, sizeof(char) * nlen);
     g_hash_table_insert(db->index, (gpointer)localname, new_counter);
-    db->current_size += sizeof(Counter);
+    if(!used_cache) {
+        db->current_size += sizeof(Counter);
+    }
     namedb_add_name(db->names, name);
+    fprintf(stderr, "Created counter for %s. used_cache=%d\n", name, used_cache);
     return new_counter;
 }
 
@@ -229,10 +272,20 @@ Counter* counterdb_get_counter(CounterDB* db, const char* name) {
  */
 void counterdb_increment_counter(CounterDB* db, const char* name) {
     counterdb_get_counter(db, name)->count++;
+    time_t cur_time;
+    if((cur_time = time(NULL)) == -1) {
+        perror("time: increment_counter");
+        exit(EXIT_FAILURE);
+    }
+    counterdb_get_counter(db, name)->last_updated = cur_time;
 }
 
-void free_name_hash(uint64_t* hash) {
-    free(hash);
+void free_string_key(char* strkey) {
+    free(strkey);
+}
+
+void free_int_key(uint64_t* intkey) {
+    free(intkey);
 }
 
 /**
@@ -244,7 +297,7 @@ void namedb_new(NameDB* db, int fd, void* region, size_t size) {
     db->fd = fd;
     db->region = region;
     db->max_size = size;
-    db->hashes = g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)free_name_hash, NULL);
+    db->hashes = g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)free_int_key, NULL);
 }
 
 /**
@@ -431,3 +484,35 @@ Counter** counterdb_get_counters(CounterDB* db) {
     return counters;
 }
 
+/**
+ * Scan the database and fill the freespace cache
+ * called on startup, and when the cache is empty and we know
+ * there are things to add to it
+ */
+void counterdb_fill_fsc(CounterDB* db) {
+    uint64_t num_counters = counterdb_length(db);
+    Counter** counters = counterdb_get_counters(db);
+    for(uint64_t index = 0; index < num_counters; index++) {
+        if(counters[index]->gc_flag) {
+            g_queue_push_head(db->freespace_cache, counters[index]);
+        }
+    }
+    free(counters);
+    fprintf(stderr, "Added %u entries to the FSC\n", g_queue_get_length(db->freespace_cache));
+}
+
+void counterdb_gc_mark(CounterDB* db) {
+    uint64_t num_counters = counterdb_length(db);
+    Counter** counters = counterdb_get_counters(db);
+    uint64_t num_marked = 0;
+    for(uint64_t index = 0; index < num_counters; index++) {
+        //120 == mark counters that have gone 2 minutes without change
+        if(time(NULL) - counters[index]->last_updated >= 60 && !counters[index]->gc_flag) {
+            counters[index]->gc_flag = true;
+            db->gc_changed = true;
+            num_marked++;
+        }
+    }
+    fprintf(stderr, "Marked %lu counters for GC\n", num_marked);
+    free(counters);
+}
