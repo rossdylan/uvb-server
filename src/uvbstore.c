@@ -13,7 +13,7 @@
 /**
  * Initialize a new CounterDB by memsetting it to 0 and setting all its values
  */
-void counterdb_new(CounterDB* db, int fd, void* region, size_t size, size_t cur_size) {
+void counterdb_new(CounterDB* db, int fd, void* region, size_t size, size_t cur_size, const char* fname) {
     db->fd = fd;
     db->region = region;
     db->max_size = size;
@@ -22,6 +22,7 @@ void counterdb_new(CounterDB* db, int fd, void* region, size_t size, size_t cur_
     db->names = NULL;
     db->gc_changed = true;
     db->freespace_cache = g_queue_new();
+    db->fname = fname;
 }
 
 off_t get_fsize(int fd) {
@@ -61,27 +62,29 @@ uint64_t expand_file(int fd) {
 
 void namedb_expand(NameDB* db) {
     uint64_t new_size = expand_file(db->fd);
+    const char* fname = db->fname;
     namedb_unload(db);
-    namedb_load(db, new_size);
+    namedb_load(db, fname, new_size);
 }
 
 void counterdb_expand(CounterDB* db) {
     uint64_t new_size = expand_file(db->fd);
     NameDB* names = db->names;
+    const char* fname = db->fname;
     counterdb_unload(db);
-    counterdb_load(db, new_size);
+    counterdb_load(db, fname, new_size);
     db->names = names;
     counterdb_load_index(db);
     counterdb_gc_mark(db);
     counterdb_fill_fsc(db);
 }
 
-CounterDB* init_database(size_t counters_size, size_t names_size) {
+CounterDB* init_database(size_t counters_size, size_t names_size, const char* counter_fname, const char* name_fname) {
     NameDB* names = malloc(sizeof(NameDB));
     CounterDB* counters = malloc(sizeof(CounterDB));
 
-    namedb_load(names, names_size);
-    counterdb_load(counters, counters_size);
+    namedb_load(names, name_fname, names_size);
+    counterdb_load(counters, counter_fname, counters_size);
     counters->names = names;
     counterdb_load_index(counters);
     counterdb_gc_mark(counters);
@@ -96,12 +99,12 @@ CounterDB* init_database(size_t counters_size, size_t names_size) {
  * TODO(rossdylan) verify that the size given is the correct size, if not,
  * remap with more space
  */
-void counterdb_load(CounterDB* database, size_t size) {
+void counterdb_load(CounterDB* database, const char* fname, size_t size) {
     int fd;
     do {
         if(errno == EINTR)
             errno = 0;
-        if((fd = open("./counters.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
+        if((fd = open(fname, O_CREAT | O_RDWR, S_IRWXU)) == -1) {
             if(errno != EINTR) {
                 perror("open: load_database");
                 exit(EXIT_FAILURE);
@@ -114,13 +117,13 @@ void counterdb_load(CounterDB* database, size_t size) {
     if (fsize == 0) {
         empty = true;
         if(size > INT64_MAX) {
-            fprintf(stderr, "counters.db is too large, can't load\n");
+            fprintf(stderr, "CounterDB is too large, can't load\n");
             exit(EXIT_FAILURE);
         }
         truncate_file(fd, (off_t)size);
     }
     if(fsize < 0) {
-        fprintf(stderr, "counters.db is negative... exiting\n");
+        fprintf(stderr, "CounterDB is negative... exiting\n");
         exit(EXIT_FAILURE);
     }
     if((size_t)fsize > size) {
@@ -138,7 +141,7 @@ void counterdb_load(CounterDB* database, size_t size) {
         header->last_offset = sizeof(DBHeader);
     }
     size_t current_size = sizeof(DBHeader) + sizeof(Counter) * header->number;
-    counterdb_new(database, fd, region, size, current_size);
+    counterdb_new(database, fd, region, size, current_size, fname);
 }
 
 /**
@@ -293,22 +296,23 @@ void free_int_key(uint64_t* intkey) {
  * - memset it to 0
  * - set all fields to the given values
  */
-void namedb_new(NameDB* db, int fd, void* region, size_t size) {
+void namedb_new(NameDB* db, int fd, void* region, size_t size, const char* fname) {
     db->fd = fd;
     db->region = region;
     db->max_size = size;
     db->hashes = g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)free_int_key, NULL);
+    db->fname = fname;
 }
 
 /**
  * Load in / create a new names.db
  */
-void namedb_load(NameDB* database, size_t size) {
+void namedb_load(NameDB* database, const char* fname, size_t size) {
     int fd;
     do {
         if(errno == EINTR)
             errno = 0;
-        if((fd = open("./names.db", O_CREAT | O_RDWR, S_IRWXU)) == -1) {
+        if((fd = open(fname, O_CREAT | O_RDWR, S_IRWXU)) == -1) {
             if(errno != EINTR) {
                 perror("open: load_names");
                 exit(EXIT_FAILURE);
@@ -338,18 +342,14 @@ void namedb_load(NameDB* database, size_t size) {
         perror("mmap: NameDB Region");
         exit(EXIT_FAILURE);
     }
-    namedb_new(database, fd, region, size);
+    namedb_new(database, fd, region, size, fname);
     DBHeader* header = (DBHeader* )database->region;
     if (empty) {
         memset(header, 0, sizeof(DBHeader));
         header->number = 0;
         header->last_offset = sizeof(DBHeader);
     }
-    off_t dbsize = ((char* )database->region + header->last_offset) - (char* )database->region;
-    if(dbsize < 0) {
-        fprintf(stderr, "calculated the DBsize to be 0, exiting");
-        exit(EXIT_FAILURE);
-    }
+    size_t dbsize = header->last_offset;
     size_t name_count = namedb_length(database);
     if(name_count > 0) {
         char** names = namedb_get_names(database);
@@ -360,7 +360,7 @@ void namedb_load(NameDB* database, size_t size) {
         }
         free(names);
     }
-    database->current_size = (uint64_t)dbsize;
+    database->current_size = dbsize;
 }
 
 /**
@@ -402,6 +402,7 @@ void namedb_add_name(NameDB* db, const char* name) {
     memset(nheader, 0, sizeof(NameHeader));
     nheader->name_size = name_size;
     nheader->gc_flag = false;
+    fprintf(stderr, "Added nheader at %p with nsize of %lu ", nheader, name_size);
     void* savedNamePtr = (void* )((char* )db->region + header->last_offset + sizeof(NameHeader) + 1);
     char* savedName = (char* )savedNamePtr;
     memset(savedName, 0, nheader->name_size);
@@ -440,11 +441,10 @@ char** namedb_get_names(NameDB* db) {
     uint64_t offset = sizeof(DBHeader);
     for (uint64_t i = 0; i < length; ++i) {
         NameHeader* nheader = (NameHeader* )((void* )((char* )db->region + offset + 1));
-        if(!nheader->gc_flag) {
-            char* ondiskName = (char* )db->region + offset + sizeof(NameHeader) + 1;
-            names[i] = ondiskName;
-        }
-        offset += sizeof(NameHeader) + nheader->name_size;
+        fprintf(stderr, "nameheader: loc=%p gc_flag=%d size=%lu\n", nheader, nheader->gc_flag, nheader->name_size);
+        char* ondiskName = (char* )db->region + offset + sizeof(NameHeader) + 1;
+        names[i] = ondiskName;
+        offset = offset + sizeof(NameHeader) + nheader->name_size;
     }
     return names;
 }
@@ -503,6 +503,22 @@ void counterdb_fill_fsc(CounterDB* db) {
     fprintf(stderr, "Added %u entries to the FSC\n", g_queue_get_length(db->freespace_cache));
 }
 
+/**
+ * Mark a sigle name in the NameDB as needing to be GC'd
+ * This name will be expunged during the next compaction run
+ */
+void namedb_gc_mark_name(NameDB* db, uint64_t name_hash) {
+    char* name = namedb_name_from_hash(db, name_hash);
+    NameHeader* nheader = (NameHeader*)((void*)(name - sizeof(NameHeader)));
+    fprintf(stderr, "marking name of size %lu at %p as gcable\n", nheader->name_size, nheader);
+    nheader->gc_flag = true;
+}
+
+/**
+ * Mark all counters that should be deleted as such
+ * These marked counters will eventually be put into the freespace_cache and
+ * their memory reused.
+ */
 void counterdb_gc_mark(CounterDB* db) {
     uint64_t num_counters = counterdb_length(db);
     Counter** counters = counterdb_get_counters(db);
@@ -511,10 +527,15 @@ void counterdb_gc_mark(CounterDB* db) {
         //120 == mark counters that have gone 2 minutes without change
         if(time(NULL) - counters[index]->last_updated >= 60 && !counters[index]->gc_flag) {
             counters[index]->gc_flag = true;
+            namedb_gc_mark_name(db->names, counters[index]->name_hash);
             db->gc_changed = true;
             num_marked++;
         }
     }
     fprintf(stderr, "Marked %lu counters for GC\n", num_marked);
     free(counters);
+}
+
+void namedb_compact(NameDB* db) {
+
 }

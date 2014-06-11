@@ -15,6 +15,7 @@
 typedef struct {
     GHashTable* hashes;
     void* region;
+    const char* fname;
     size_t max_size;
     size_t current_size;
     int fd;
@@ -27,6 +28,7 @@ typedef struct {
     size_t max_size;
     size_t current_size;
     void* region;
+    const char* fname;
     int fd;
     bool gc_changed; // lets us know when the marker has run and found files to be marked
 } CounterDB;
@@ -53,8 +55,8 @@ typedef struct {
     bool gc_flag;
 } NameHeader;
 
-void namedb_new(NameDB* db, int fd, void* region, size_t size);
-void namedb_load(NameDB* db, size_t size);
+void namedb_new(NameDB* db, int fd, void* region, size_t size, const char* fname);
+void namedb_load(NameDB* db, const char* fname, size_t size);
 void namedb_unload(NameDB* db);
 
 void namedb_add_name(NameDB* db, const char* name);
@@ -63,8 +65,8 @@ char** namedb_get_names(NameDB* db);
 char* namedb_name_from_hash(NameDB* db, uint64_t hash);
 void namedb_expand(NameDB* db);
 
-void counterdb_new(CounterDB* db, int fd, void* region, size_t size, size_t cur_size);
-void counterdb_load(CounterDB* database, size_t size);
+void counterdb_new(CounterDB* db, int fd, void* region, size_t size, size_t cur_size, const char* fname);
+void counterdb_load(CounterDB* database, const char* fname, size_t size);
 void counterdb_unload(CounterDB* db);
 
 Counter* counterdb_add_counter(CounterDB* db, const char* name);
@@ -87,7 +89,7 @@ void free_string_key(char* hash);
 /**
  * Wraps the calls to namedb_load and counterdb_load and returns a fully initialized counterdb
  */
-CounterDB* init_database(size_t counters_size, size_t names_size);
+CounterDB* init_database(size_t counters_size, size_t names_size, const char* counter_fname, const char* name_fname);
 
 /**
  * Load the names stored in the namesdb into the GHashTable
@@ -122,5 +124,6 @@ void counterdb_fill_fsc(CounterDB* db);
  * Rewrite the namedb file eliminating all tombstones
  */
 void namedb_compact(NameDB* db);
+void namedb_gc_mark_name(NameDB* db, uint64_t name_hash);
 #endif
 
