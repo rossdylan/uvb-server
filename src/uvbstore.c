@@ -402,7 +402,6 @@ void namedb_add_name(NameDB* db, const char* name) {
     memset(nheader, 0, sizeof(NameHeader));
     nheader->name_size = name_size;
     nheader->gc_flag = false;
-    fprintf(stderr, "Added nheader at %p with nsize of %lu ", nheader, name_size);
     void* savedNamePtr = (void* )((char* )db->region + header->last_offset + sizeof(NameHeader) + 1);
     char* savedName = (char* )savedNamePtr;
     memset(savedName, 0, nheader->name_size);
@@ -441,13 +440,13 @@ char** namedb_get_names(NameDB* db) {
     uint64_t offset = sizeof(DBHeader);
     for (uint64_t i = 0; i < length; ++i) {
         NameHeader* nheader = (NameHeader* )((void* )((char* )db->region + offset + 1));
-        fprintf(stderr, "nameheader: loc=%p gc_flag=%d size=%lu\n", nheader, nheader->gc_flag, nheader->name_size);
         char* ondiskName = (char* )db->region + offset + sizeof(NameHeader) + 1;
         names[i] = ondiskName;
         offset = offset + sizeof(NameHeader) + nheader->name_size;
     }
     return names;
 }
+
 
 char* namedb_name_from_hash(NameDB* db, uint64_t hash) {
     return g_hash_table_lookup(db->hashes, &hash);
@@ -510,7 +509,6 @@ void counterdb_fill_fsc(CounterDB* db) {
 void namedb_gc_mark_name(NameDB* db, uint64_t name_hash) {
     char* name = namedb_name_from_hash(db, name_hash);
     NameHeader* nheader = (NameHeader*)((void*)(name - sizeof(NameHeader)));
-    fprintf(stderr, "marking name of size %lu at %p as gcable\n", nheader->name_size, nheader);
     nheader->gc_flag = true;
 }
 
@@ -537,5 +535,28 @@ void counterdb_gc_mark(CounterDB* db) {
 }
 
 void namedb_compact(NameDB* db) {
-
+    NameDB* compacted;
+    if((compacted = malloc(sizeof(NameDB))) == NULL) {
+        perror("malloc: namedb_compact");
+        exit(EXIT_FAILURE);
+    }
+    namedb_load(compacted, "names.db.compacted", db->max_size);
+    const char* fname = db->fname;
+    uint64_t size = db->max_size;
+    char** names = namedb_get_names(db);
+    uint64_t length = namedb_length(db);
+    for(uint64_t i = 0; i<length; i++) {
+        NameHeader* nheader = (NameHeader*)((void*)(names[i] - sizeof(NameHeader)));
+        if(!nheader->gc_flag) {
+            namedb_add_name(compacted, names[i]);
+        }
+    }
+    namedb_unload(compacted);
+    namedb_unload(db);
+    if(rename("names.db.compacted", fname) == -1) {
+        perror("rename: namedb_compact");
+        exit(EXIT_FAILURE);
+    }
+    namedb_load(db, fname, size);
+    fprintf(stderr, "Compacted namesdb: %lu -> %lu\n", length, namedb_length(db));
 }

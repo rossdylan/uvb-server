@@ -7,7 +7,7 @@
 /**
  * Get the number of tokens created using strtok on a string
  */
-
+int namegc_counter = 0;
 
 uint64_t ntok(char* str, const char* delim) {
     //XXX(rossdylan) I'm really tired, there is probably a better way to this
@@ -204,12 +204,14 @@ void uvbserver_route_display(struct evhttp_request* req, void* arg) {
             Counter* counter;
             for(uint64_t i=0; i<ncounters; ++i) {
                 counter = counters[i];
-                name = namedb_name_from_hash(db->names, counter->name_hash);
-                if(counter->count > topCounter) {
-                    topName = name;
-                    topCounter = counter->count;
+                if(!counter->gc_flag) {
+                    name = namedb_name_from_hash(db->names, counter->name_hash);
+                    if(counter->count > topCounter) {
+                        topName = name;
+                        topCounter = counter->count;
+                    }
+                    evbuffer_add_printf(evb, "<b>%s:</b> %lu - %lu req/s <br />\n", name, counter->count, counter->rps);
                 }
-                evbuffer_add_printf(evb, "<b>%s:</b> %lu - %lu req/s <br />\n", name, counter->count, counter->rps);
             }
             free(counters);
             evbuffer_add_printf(evb, "Current Winner is: <b>%s</b><br />\n", topName);
@@ -239,4 +241,10 @@ void uvbserver_calculate_rps(int fd, short event, void* arg) {
 void uvbserver_run_gc(int fd, short event, void* arg) {
     CounterDB* db = (CounterDB* )arg;
     counterdb_gc_mark(db);
+    namegc_counter++;
+    if(namegc_counter >= 5) {
+        NameDB* names = db->names;
+        namedb_compact(names);
+        namegc_counter = 0;
+    }
 }
