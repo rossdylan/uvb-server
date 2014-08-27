@@ -211,7 +211,7 @@ Counter* counterdb_add_counter(CounterDB* db, const char* name) {
     }
     Counter* new_counter = NULL;
     if(g_queue_get_length(db->freespace_cache) == 0) {
-        new_counter = (Counter* )((void* )((char* )db->region + header->last_offset + 1));
+        new_counter = (Counter* )((void* )((char* )db->region + db->current_size + 1));
     }
     else {
         new_counter = (Counter* )g_queue_pop_head(db->freespace_cache);
@@ -254,12 +254,8 @@ Counter* counterdb_add_counter(CounterDB* db, const char* name) {
  * disk is fully mirrored into index.
  */
 bool counterdb_counter_exists(CounterDB* db, const char* name) {
-    if(GLIB_CHECK_VERSION(2, 3, 2)) {
-        return g_hash_table_contains(db->index, name);
-    }
-    else {
-        return g_hash_table_lookup(db->index, name) != NULL;
-    }
+    Counter* c = g_hash_table_lookup(db->index, name);
+    return c != NULL && !c->gc_flag;
 }
 
 /**
@@ -398,11 +394,11 @@ void namedb_add_name(NameDB* db, const char* name) {
         fprintf(stderr, "expanded namedb: cur_size=%lu max_size=%lu\n", db->current_size, db->max_size);
     }
     DBHeader* header = (DBHeader* )db->region;
-    NameHeader* nheader = (NameHeader* )((void* )((char* )db->region + header->last_offset + 1));
+    NameHeader* nheader = (NameHeader* )((void* )((char* )db->region + db->current_size + 1));
     memset(nheader, 0, sizeof(NameHeader));
     nheader->name_size = name_size;
     nheader->gc_flag = false;
-    void* savedNamePtr = (void* )((char* )db->region + header->last_offset + sizeof(NameHeader) + 1);
+    void* savedNamePtr = (void* )((char* )db->region + db->current_size + sizeof(NameHeader) + 1);
     char* savedName = (char* )savedNamePtr;
     memset(savedName, 0, nheader->name_size);
     memmove(savedName, name, nheader->name_size);
