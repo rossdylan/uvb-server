@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include "uvbstore.h"
+#include <stdbool.h>
 
 #define MAXEVENTS 64
 
@@ -25,6 +26,7 @@ typedef struct {
     int size;
     int max_size;
     char *buffer;
+    bool done;
 } SessionData;
 
 
@@ -55,7 +57,7 @@ int make_socket_nonblocking(int socket_fd) {
 int make_server_socket(char *port) {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
-    int s, server_fd;
+    int s, server_fd = 0;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -81,6 +83,8 @@ int make_server_socket(char *port) {
         return -1;
     }
     freeaddrinfo(result);
+    int reuse = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
     return server_fd;
 }
 
@@ -88,15 +92,19 @@ void *wait_loop(void *ptr) {
     int epoll_fd = (int)ptr;
     struct epoll_event *events;
     struct epoll_event event;
+    char *response = make_http_response(200, "OK", "text/plain", "YOLO");
     if((events = calloc(MAXEVENTS, sizeof(struct epoll_event))) == NULL) {
         perror("failed to malloc events array");
         exit(EXIT_FAILURE);
     }
     while (1) {
         int n, i;
-        if((n = epoll_wait(epoll_fd, events, MAXEVENTS, -1)) == -1) {
-            perror("epoll_wait");
-            exit(EXIT_FAILURE);
+        n = epoll_wait(epoll_fd, events, MAXEVENTS, -1);
+        if(n < 0) {
+            if(errno != EINTR) {
+                perror("epoll_wait");
+                exit(EXIT_FAILURE);
+            }
         }
         SessionData *session;
         for(i = 0; i < n; i++) {
@@ -116,11 +124,9 @@ void *wait_loop(void *ptr) {
                 continue;
             }
             else if(listen_fd == session->fd) {
-                printf("Accepting shit\n");
                 struct sockaddr in_addr;
                 socklen_t in_len;
                 int infd, s;
-                char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
                 in_len = sizeof(in_addr);
                 infd = accept(listen_fd, &in_addr, &in_len);
                 if(infd == -1) {
@@ -131,10 +137,6 @@ void *wait_loop(void *ptr) {
                         perror("Accept failed");
                         break;
                     }
-                }
-                s = getnameinfo(&in_addr, in_len, hbuf, sizeof(hbuf), sbuf, sizeof(sbuf), NI_NUMERICHOST | NI_NUMERICSERV);
-                if(s == 0) {
-                    printf("Accepted connection on fd %d (host=%s, port=%s)\n",  infd, hbuf, sbuf);
                 }
                 if(make_socket_nonblocking(infd) == -1) {
                     exit(EXIT_FAILURE);
@@ -151,6 +153,7 @@ void *wait_loop(void *ptr) {
                 new_session->fd = infd;
                 new_session->size = 0;
                 new_session->max_size = 512;
+                new_session->done = false;
                 event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
                 s = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, infd, &event);
                 if(s == -1) {
@@ -164,8 +167,6 @@ void *wait_loop(void *ptr) {
                 }
             }
             else {
-                printf("Reading some shit\n");
-                int done = 0;
                 while (1) {
                     ssize_t count;
                     char buf[512];
@@ -173,55 +174,61 @@ void *wait_loop(void *ptr) {
                     if(count == -1) {
                         if(errno != EAGAIN) {
                             perror("read");
-                            done = 1;
                         }
                         break;
                     }
                     else if(count == 0) {
-                        done = 1;
                         break;
                     }
                     if(count + session->size > session->max_size) {
-                        //buffer would overflow, expand to fit
-                        if((session->buffer = realloc((void *)session->buffer, sizeof(session->buffer) + (count * 2))) == NULL) {
+                        /*buffer would overflow, expand to fit
+                        printf("%d: Count is %lu\n", session->fd, count);
+                        printf("%d: Session size is %lu\n", session->fd, session->size);
+                        printf("%d: max_size is %lu\n", session->fd, session->max_size);
+                        printf("%d: New buffer size: %lu\n", session->fd, session->max_size + (count * 2));
+                        printf("------\n");
+                        */
+                        if((session->buffer = realloc((void *)session->buffer, (size_t)session->max_size + (size_t)(count * 2))) == NULL) {
                             perror("realloc");
                             exit(EXIT_FAILURE);
                         }
                         session->max_size += count*2;
                     }
-                    memmove(&session->buffer[session->size], buf, count);
+                    memmove(&session->buffer[session->size], buf, (unsigned long)count);
                     session->size += count;
 
                     if(session->buffer[session->size-1] == '\n' && session->buffer[session->size-2] == '\r') {
                         if(session->size < session->max_size) {
                             session->buffer[session->size+1] = '\0';
                         }
+                        /*
                         if(write(1, session->buffer, session->size) == -1) {
                             perror("write");
                             exit(EXIT_FAILURE);
                         }
-                        char *response = make_http_response(200, "OK", "text/plain", "YOLO");
-                        write(session->fd, response, strlen(response));
-                        free(response);
-                        done = 1;
+                        */
+                        if(write(session->fd, response, strlen(response)) == -1) {
+                            perror("write");
+                        }
+                        session->done = true;
                         break;
                     }
+                }
+                if(session->done) {
+                    if(session->buffer != NULL) {
+                        free(session->buffer);
+                        session->buffer = NULL;
+                    }
+                    close(session->fd);
+                    free(session);
+                    events[i].data.ptr = NULL;
+                }
+                else {
                     events[i].events = EPOLLIN | EPOLLET | EPOLLONESHOT;
                     if(epoll_ctl(epoll_fd, EPOLL_CTL_MOD, session->fd, &events[i]) != 0) {
                         perror("epoll_ctl EPOLL_CTL_MOD");
                         exit(EXIT_FAILURE);
                     }
-                }
-                if(done) {
-                    printf("Closed connection on fd %d\n", session->fd);
-                    if(session->buffer != NULL) {
-                        free(session->buffer);
-                        session->buffer = NULL;
-                    }
-                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, session->fd, NULL);
-                    close(session->fd);
-                    free(session);
-                    events[i].data.ptr = NULL;
                 }
             }
         }
@@ -230,10 +237,10 @@ void *wait_loop(void *ptr) {
 }
 
 void new_uvbserver(void) {
-    int num_threads;
+    int num_threads = 8;
     int epoll_fd;
     struct epoll_event event;
-    pthread_t thread1, thread2;
+    pthread_t threads[8];
     if((epoll_fd = epoll_create1(0)) == -1) {
         perror("epoll_create");
         exit(EXIT_FAILURE);
@@ -253,6 +260,7 @@ void new_uvbserver(void) {
     }
     new_session->fd = listen_fd;
     new_session->buffer = NULL;
+    new_session->done = false;
     event.data.ptr = (void *)new_session;
     if(make_socket_nonblocking(listen_fd) == -1) {
         exit(EXIT_FAILURE);
@@ -266,16 +274,15 @@ void new_uvbserver(void) {
         perror("epoll_create");
         exit(EXIT_FAILURE);
     }
-    if(pthread_create(&thread1, NULL, wait_loop, (void *)epoll_fd)) {
-        perror("pthread_create");
-        exit(EXIT_FAILURE);
+    for(int i=0;i<num_threads;i++) {
+        if(pthread_create(&threads[i], NULL, wait_loop, (void *)epoll_fd)) {
+            perror("pthread_create");
+            exit(EXIT_FAILURE);
+        }
     }
-    if(pthread_create(&thread2, NULL, wait_loop, (void *)epoll_fd)) {
-        perror("pthread_create");
-        exit(EXIT_FAILURE);
+    for(int i=0;i<num_threads;i++) {
+        pthread_join(threads[i], NULL);
     }
-    pthread_join(thread1, NULL);
-    pthread_join(thread2, NULL);
     close(listen_fd);
 }
 
