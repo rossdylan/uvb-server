@@ -1,6 +1,6 @@
 PREFIX := /usr/local
-CFLAGS := -I./include
-CFLAGS += -Wall -Wextra -fPIC -pedantic
+CPPFLAGS := -I./include -I/usr/include
+CFLAGS := -Wall -Wextra -fPIC -pedantic -pthread -lhttp_parser
 ifeq ($(CC),gcc)
     CFLAGS += -std=c11 -ggdb3
 endif
@@ -8,27 +8,19 @@ ifeq ($(CC),clang)
     CFLAGS += -ggdb -Weverything
 endif
 
-CFLAGS += $(shell pkg-config --cflags glib-2.0 libevent)
-LIBRARIES := $(shell pkg-config --libs glib-2.0 libevent)
 SOURCE := $(wildcard src/*.c)
-OBJECTS := $(SOURCE:.c=.o)
+
 EXECUTABLE := uvb-server
 
-.PHONY: all clean install
-
-all: $(EXECUTABLE)
+all:
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $(EXECUTABLE) $(SOURCE)
 
 install:
 	install -D $(EXECUTABLE) $(PREFIX)/bin/$(EXECUTABLE)
 
 clean:
-	$(RM) $(EXECUTABLE) counters.db names.db $(OBJECTS)
+	$(RM) $(EXECUTABLE) counters.db names.db
 
 uninstall:
 	$(RM) $(PREFIX)/bin/$(EXECUTABLE)
 
-$(EXECUTABLE): $(OBJECTS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBRARIES)
-
-%.o: %.c
-	$(CC) -c $(CFLAGS) -o $@ $<
