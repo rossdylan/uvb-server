@@ -1,20 +1,58 @@
 UVB - Ultimate Victory Battle
 -----------------------------
 
-This is a server implementation for the classic CSH game UVB. This version is written in C. I chose C in order to help myself become more fluent in the langauge. 
-There are two main parts to this server. The first is the storage engine which uses mmap to store counters on disk.
-The database is made up of two parts:
-The CounterDB which has a file layout like this.
+Ultimate Victory Battle is a game created by Computer Science House. The basic
+premise is this. There is a server, every one else tries to crash the server.
+There are also counters and statistics, but thats just to rank how hard each
+player is hitting the server.
 
-struct DBHeader{uint64_t number; uint64_t last_offset;}
-struct Counter{uint64_t count; GQuark name_quark;}
+Most people end up writing a client which floods a server with traffic. I
+thought it would be more fun to write a server which can handle the flood of
+traffic. That server is what I have attempted to build here.
 
-The other is the NameDB which has a layout like this
+This branch of the UVB server is the 3rd iteration of my design. It is still
+written in C. The difference is in the year or so since I started I've gotten
+a bit better at writing C. I've also rethought the design a bit. This new
+design is documented below.
 
-struct DBHeader{uint64_t number; uint64_t last_offset;}
-uint64_t nameSize;
-char* name;
 
-Since names are linked to counters using GQuarks we save all the names to another file (names.db) in the order in which they were created. These names are loaded back in
-when the program does a scan of the database. It rebuilds the quarks and then iterates through the counters and saves each (char*, Counter*) pair into a GHashTable.
-This way lookups for counters are fast, but also persisted to disk since the hashtable only stores a pointer to the mmap'd region of memory holding that counter.
+What has Changed
+----------------
+
+1. No longer using libevent
+    libevent was a good choice to begin with, got me used to working in C, and
+    let me focus on the database that was backing the counter increment system.
+    Howver once I started to move to a multithreaded model libevent became way
+    harder to use. I ripped all that out and replaced it with a pure epoll
+    based event-loop. uvbserver2 was my first attempt at this, it
+    worked, kinda. I cleaned up the code and fixed those issues to create the
+    current version you see here.
+
+2. joyent/http-parser instead of libevent builtin http library
+    Without libevent I had to rewrite all the quick and easy code I had to
+    handle http requests. I did this using a custom buffer implementation I
+    wrote and Joyent's excellent http-parser library.
+
+3. Multithreaded epoll
+    This is the big one. By using straight epoll I was able to run an event
+    loop for handling connections on each CPU. The current system has roughly
+    uniform work distribution between the threads and is capable of handling
+    a massive amount of requests.
+
+
+In Progress Work
+----------------
+
+1. Per-user counters
+    Right now there is a single global counter which I used to verify my ideas
+    about mutlithreaded counters and for testing the http server. Once I find
+    a hash table to my liking per-user counters will return.
+
+2. Persistence
+    Since I rewrote the server from the ground up persistence no longer works.
+    I need to rebuild the database backend in order to handle multithreading.
+
+3. Distributed UVB
+    I've been pretty focused on single machine performance. Eventually this
+    won't be enough. So I've been thinking about how to make UVB work acrossed
+    multiple machines.
