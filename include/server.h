@@ -13,23 +13,23 @@
 #define MAXEVENTS 64
 #define MAXREAD 512
 
-// Used to pass the epoll_fd and some other arbitrary data to a pthread
-typedef struct {
-    int epoll_fd;
-    int listen_fd;
-    void *data;
-    uint64_t thread_id;
-    global_counter_t *counter;
-} thread_data_t;
 
+typedef struct {
+    char *port;
+    size_t nthreads;
+    pthread_t *threads;
+
+} server_t;
+
+// Used to pass server info into the threads
 typedef struct {
     const char *port;
     int listen_fd;
     int epoll_fd;
-    size_t nthreads;
-    const char *address;
-    pthread_t *threads;
-} server_t;
+    void *data;
+    uint64_t thread_id;
+    global_counter_t *counter;
+} thread_data_t;
 
 
 const char *make_http_response(int status_code, const char *status, const char *content_type, const char* response);

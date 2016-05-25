@@ -50,11 +50,13 @@ int make_server_socket(const char *port) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
         return -1;
     }
+    int reuse = 1;
     for(rp = result; rp != NULL; rp = rp->ai_next) {
         server_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if(server_fd == -1) {
             continue;
         }
+        setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT | SO_REUSEADDR, &reuse, sizeof(reuse));
         if(bind(server_fd, rp->ai_addr, rp->ai_addrlen) == 0) {
             break;
         }
@@ -65,8 +67,6 @@ int make_server_socket(const char *port) {
         return -1;
     }
     freeaddrinfo(result);
-    int reuse = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
     return server_fd;
 }
 
@@ -91,28 +91,66 @@ void free_connection(connection_t *session) {
 }
 
 // Function executed within a pthread to multiplex epoll acrossed threads
+// ptr is a reference to the port
 void *epoll_loop(void *ptr) {
-    //set up our parser settings.
+    thread_data_t *data = ptr;
+    int listen_fd =-1;
+    struct epoll_event *events;
+    struct epoll_event event;
+    const char *response = make_http_response(200, "OK", "text/plain", "YOLO");
     http_parser_settings parser_settings;
+    int waiting;
+    connection_t *session;
+
+    //set up our parser settings.
     parser_settings.on_url = on_url;
     parser_settings.on_header_field = on_header_field;
     parser_settings.on_header_value = on_header_value;
     parser_settings.on_headers_complete = on_headers_complete;
     parser_settings.on_message_begin = NULL;
-    parser_settings.on_status_complete = NULL;
+    parser_settings.on_status = NULL;
     parser_settings.on_message_complete = NULL;
     parser_settings.on_body = NULL;
 
-    thread_data_t *data = ptr;
-    const char *response = make_http_response(200, "OK", "text/plain", "YOLO");
-    struct epoll_event *events;
-    struct epoll_event event;
+    listen_fd = make_server_socket(data->port);
+    if(listen_fd < 0) {
+        perror("make_server_socket");
+        return NULL;
+    }
+    data->listen_fd = listen_fd;
+    // make our epoll file descriptor
+    if((data->epoll_fd = epoll_create1(0)) == -1) {
+        perror("epoll_create");
+        return NULL;
+    }
+
+    // set up the server sockets epoll event data
+    if((event.data.ptr = malloc(sizeof(connection_t))) == NULL) {
+        perror("malloc");
+        return NULL;
+    }
+    connection_t *new_session = (connection_t *)event.data.ptr;
+    new_session->fd = data->listen_fd;
+    new_session->done = false;
+    if(unblock_socket(data->listen_fd) == -1) {
+        perror("unblock_socket");
+        return NULL;
+    }
+    if(listen(data->listen_fd, SOMAXCONN) == -1) {
+        perror("listen");
+        return NULL;
+    }
+    event.events = EPOLLIN | EPOLLET;
+    if(epoll_ctl(data->epoll_fd, EPOLL_CTL_ADD, data->listen_fd, &event) == -1) {
+        perror("epoll_create");
+        return NULL;
+    }
+
     if((events = calloc(MAXEVENTS, sizeof(struct epoll_event))) == NULL) {
         perror("calloc");
         return NULL;
     }
-    int waiting;
-    connection_t *session;
+
     while(true) {
         waiting = epoll_wait(data->epoll_fd, events, MAXEVENTS, -1);
         if(waiting < 0) {
@@ -139,36 +177,27 @@ void *epoll_loop(void *ptr) {
                 int in_fd = -1;
                 if((in_fd = accept(data->listen_fd, &in_addr, &in_len)) == -1) {
                     if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-                        goto epoll_loop_server_reenable;
+                        continue;
                     }
                     else {
                         perror("accept");
-                        goto epoll_loop_server_reenable;
+                        continue;
                     }
                 }
                 if(unblock_socket(in_fd) == -1) {
                     //TODO maybe do extra handling of this error case?
                     perror("unblock_socket");
-                    goto epoll_loop_server_reenable;
                 }
                 if((event.data.ptr = malloc(sizeof(connection_t))) == NULL) {
                     perror("malloc");
-                    goto epoll_loop_server_reenable;
                 }
+                printf("[thread %lu] Accepted Connection\n", data->thread_id);
                 connection_t *new_session = (connection_t *)event.data.ptr;
                 init_connection(new_session, in_fd);
-                event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+                event.events = EPOLLIN | EPOLLET;
                 if(epoll_ctl(data->epoll_fd, EPOLL_CTL_ADD, in_fd, &event) != 0) {
                     perror("epoll_ctl");
                     free_connection(new_session);
-                    goto epoll_loop_server_reenable;
-                }
-                // Renable our server fd in epoll
-epoll_loop_server_reenable:
-                events[i].events = EPOLLIN | EPOLLET | EPOLLONESHOT;
-                if(epoll_ctl(data->epoll_fd, EPOLL_CTL_MOD, session->fd, &events[i]) != 0) {
-                    perror("epoll_ctl");
-                    continue;
                 }
             }
             else {
@@ -221,12 +250,6 @@ epoll_loop_server_reenable:
                     free_connection(session);
                     events[i].data.ptr = NULL;
                 }
-                else {
-                    events[i].events = EPOLLIN | EPOLLET | EPOLLONESHOT;
-                    if(epoll_ctl(data->epoll_fd, EPOLL_CTL_MOD, session->fd, &events[i]) != 0) {
-                        perror("epoll_ctl");
-                    }
-                }
             }
 
         }
@@ -242,78 +265,39 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
         perror("malloc");
         return NULL;
     }
+    server->nthreads = nthreads;
+    server->port = port;
     if((global_counter = new_global_counter(nthreads)) == NULL) {
         goto new_server_free;
     }
-    server->nthreads = nthreads;
-    server->address = addr;
-    server->port = port;
-    struct epoll_event event;
+
     // Make our array of threads
     if((server->threads = calloc(nthreads, sizeof(pthread_t))) == NULL) {
         perror("calloc");
         server->threads = NULL;
         goto new_server_free;
     }
-    // make our epoll file descriptor
-    if((server->epoll_fd = epoll_create1(0)) == -1) {
-        perror("epoll_create");
-        goto new_server_free;
-        return NULL;
-    }
-    // setup our server socket
-    if((server->listen_fd = make_server_socket(server->port)) == -1) {
-        perror("make_server_socket");
-        goto new_server_listen_close;
-    }
-    // set up the server sockets epoll event data
-    if((event.data.ptr = malloc(sizeof(connection_t))) == NULL) {
-        perror("malloc");
-        goto new_server_epoll_close;
-    }
-    connection_t *new_session = (connection_t *)event.data.ptr;
-    new_session->fd = server->listen_fd;
-    new_session->done = false;
-    if(unblock_socket(server->listen_fd) == -1) {
-        perror("unblock_socket");
-        goto new_server_epoll_close;
-    }
-    if(listen(server->listen_fd, SOMAXCONN) == -1) {
-        perror("listen");
-        goto new_server_epoll_close;
-    }
-    event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
-    if(epoll_ctl(server->epoll_fd, EPOLL_CTL_ADD, server->listen_fd, &event) == -1) {
-        perror("epoll_create");
-        goto new_server_epoll_close;
-    }
-
 
     for(size_t i=0; i<nthreads; i++) {
         thread_data_t *tdata = NULL;
         if((tdata = malloc(sizeof(thread_data_t))) == NULL) {
             perror("malloc");
-            goto new_server_epoll_close;
+            goto new_server_free;
         }
-        tdata->epoll_fd = server->epoll_fd;
-        tdata->listen_fd = server->listen_fd;
+        memset(tdata, 0, sizeof(thread_data_t));
+        tdata->port = port;
         tdata->thread_id = i;
         tdata->counter = global_counter; // this bit is shared data
         if(pthread_create(&server->threads[i], NULL, epoll_loop, (void *)tdata) != 0) {
             perror("pthread_create");
-            goto new_server_epoll_close;
+            goto new_server_free;
         }
     }
     goto new_server_return;
 
-new_server_epoll_close:
-    close(server->epoll_fd);
-new_server_listen_close:
-    close(server->listen_fd);
 new_server_free:
     free(server->threads);
     free(server);
-    free(event.data.ptr);
     server = NULL;
     if(global_counter != NULL) {
         global_counter_free(global_counter);
