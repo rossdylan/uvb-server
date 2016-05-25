@@ -240,7 +240,7 @@ epoll_loop_server_reenable:
                     // REMOVE BUFFER SHIT - ADD PARSER SHIT
                     if(session->msg.done) {
                         if(http_url_compare(&session->msg, "/stats") == 0) {
-                            uint64_t value = global_counter_value(data->counter);
+                            uint64_t value =  0;
                             char *thingy;
                             asprintf(&thingy, "VALUE = %lu\n", value);
                             char *resp = make_http_response(200, "OK", "text/plain", thingy);
@@ -250,8 +250,12 @@ epoll_loop_server_reenable:
                             free(resp);
                             free(thingy);
                         }
-                        else {
-                            counter_inc(data->counter, data->thread_id);
+                        else if(http_url_compare(&session->msg, "/") != 0) {
+                            // OH GOD DON'T LOOK I'M A HIDEOUS HACK
+                            // We peak into the buffer and take away the first
+                            // character in order to just get the key
+                            char *key = (char *)(session->msg.url.buffer + 1);
+                            uint64_t new_val = lmdb_counter_inc(data->counter, key);
                             if(write(session->fd, response, strlen(response)) == -1) {
                                 perror("write");
                             }
@@ -280,14 +284,14 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
     // set up out thread local storage for the current session
     pthread_key_create(&current_session, NULL);
     server_t *server = NULL;
-    global_counter_t *global_counter = NULL;
+    lmdb_counter_t *counter = NULL;
     if((server = malloc(sizeof(server_t))) == NULL) {
         perror("malloc");
         return NULL;
     }
     server->nthreads = nthreads;
     server->port = port;
-    if((global_counter = new_global_counter(nthreads)) == NULL) {
+    if((counter = lmdb_counter_init("./uvb.lmdb", nthreads)) == NULL) {
         goto new_server_free;
     }
 
@@ -311,7 +315,7 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
         memset(tdata, 0, sizeof(thread_data_t));
         tdata->port = port;
         tdata->thread_id = i;
-        tdata->counter = global_counter; // this bit is shared data
+        tdata->counter = counter; // this bit is shared data
 
         memset(&set, 0, sizeof(cpu_set_t));
         CPU_SET(i, &set);
@@ -328,8 +332,8 @@ new_server_free:
     free(server->threads);
     free(server);
     server = NULL;
-    if(global_counter != NULL) {
-        global_counter_free(global_counter);
+    if(counter != NULL) {
+        lmdb_counter_destroy(counter);
     }
 new_server_return:
     return server;
