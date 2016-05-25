@@ -1,6 +1,4 @@
-#ifndef _UVB_SESSION_H
-#define _UVB_SESSION_H
-
+#pragma once
 #include <http_parser.h>
 #include "buffer.h"
 
@@ -24,5 +22,3 @@ typedef struct {
     http_msg_t msg;
     http_parser parser;
 } connection_t;
-
-#endif

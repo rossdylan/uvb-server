@@ -1,6 +1,4 @@
-#ifndef _UVB_HTTP_H
-#define _UVB_HTTP_H
-
+#pragma once
 #include <http_parser.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -32,4 +30,3 @@ int on_headers_complete(http_parser *_);
 // Functions to work with headers
 int http_header_compare(http_msg_t *msg, const char *name, const char *value);
 int http_url_compare(http_msg_t *msg, const char *value);
-#endif

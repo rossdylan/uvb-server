@@ -1,6 +1,4 @@
-#ifndef _UVB_SERVER_H
-#define _UVB_SERVER_H
-
+#pragma once
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -15,7 +13,7 @@
 
 
 typedef struct {
-    char *port;
+    const char *port;
     size_t nthreads;
     pthread_t *threads;
 
@@ -32,7 +30,7 @@ typedef struct {
 } thread_data_t;
 
 
-const char *make_http_response(int status_code, const char *status, const char *content_type, const char* response);
+char *make_http_response(int status_code, const char *status, const char *content_type, const char* response);
 
 int unblock_socket(int fd);
 
@@ -45,4 +43,3 @@ static inline bool epoll_error(struct epoll_event e);
 void *epoll_loop(void *ptr);
 server_t *new_server(const size_t nthreads, const char *addr, const char *port);
 void server_wait(server_t *server);
-#endif

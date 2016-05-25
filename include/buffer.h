@@ -1,6 +1,4 @@
-#ifndef _BUFFER_H
-#define _BUFFER_H
-
+#pragma once
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -31,4 +29,3 @@ void buffer_free(buffer_t *buffer);
 int buffer_clear(buffer_t *buffer);
 uint64_t buffer_length(buffer_t *buffer);
 char buffer_char_at(buffer_t *buffer, uint64_t index);
-#endif

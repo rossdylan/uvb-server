@@ -1,6 +1,4 @@
-#ifndef _UVB_COUNTER_H
-#define _UVB_COUNTER_H
-
+#pragma once
 #include <pthread.h>
 #include <stdint.h>
 
@@ -21,4 +19,3 @@ global_counter_t *new_global_counter(uint64_t n);
 void counter_inc(global_counter_t *tc, uint64_t thread);
 uint64_t global_counter_value(global_counter_t *gc);
 void global_counter_free(global_counter_t *gc);
-#endif

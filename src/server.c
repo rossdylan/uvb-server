@@ -14,7 +14,7 @@
  * Utility Functions
  */
 
-const char *make_http_response(int status_code, const char *status, const char *content_type, const char* response) {
+char *make_http_response(int status_code, const char *status, const char *content_type, const char* response) {
     char *full_response;
     asprintf(&full_response, "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %lu\r\n\r\n%s",
             status_code, status, content_type, strlen(response), response);
@@ -129,9 +129,9 @@ void *epoll_loop(void *ptr) {
         perror("malloc");
         return NULL;
     }
-    connection_t *new_session = (connection_t *)event.data.ptr;
-    new_session->fd = data->listen_fd;
-    new_session->done = false;
+    connection_t *server_session = (connection_t *)event.data.ptr;
+    server_session->fd = data->listen_fd;
+    server_session->done = false;
     if(unblock_socket(data->listen_fd) == -1) {
         perror("unblock_socket");
         return NULL;
@@ -313,6 +313,20 @@ void server_wait(server_t *server) {
 }
 
 int main(int argc, char *argv[]) {
-    server_t *server = new_server(8, "0.0.0.0", "8000");
+    char *port = "8000";
+    size_t threads = 8;
+    if(argc > 1) {
+        port = argv[1];
+    }
+    if(argc > 2) {
+        errno = 0;
+        threads = strtol(argv[2], NULL, 10);
+        if(errno != 0) {
+            perror("strtol");
+            return -1;
+        }
+    }
+    printf("Starting UVB Server on port %s with %lu threads\n", port, threads);
+    server_t *server = new_server(threads, "0.0.0.0", port);
     server_wait(server);
 }

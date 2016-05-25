@@ -45,12 +45,14 @@ connection_t *get_current_session(void) {
 }
 
 int on_url(http_parser *_, const char *at, size_t len) {
+    (void)_;
     connection_t *session = get_current_session();
     buffer_append(&session->msg.url, at, len);
     return 0;
 }
 
 int on_header_field(http_parser *_, const char *at, size_t len) {
+    (void)_;
     connection_t *session = get_current_session();
     if(session->msg.reading_value) {
         session->msg.current_header++;
@@ -67,6 +69,7 @@ int on_header_field(http_parser *_, const char *at, size_t len) {
 }
 
 int on_header_value(http_parser *_, const char *at, size_t len) {
+    (void)_;
     connection_t *session = get_current_session();
     session->msg.reading_value = true;
     uint64_t current_header = session->msg.current_header;
@@ -75,6 +78,7 @@ int on_header_value(http_parser *_, const char *at, size_t len) {
 }
 
 int on_headers_complete(http_parser *_) {
+    (void)_;
     connection_t *session = get_current_session();
     for(uint64_t i=0; i<session->msg.current_header; i++) {
         buffer_truncate(&session->msg.headers[i].value);
@@ -86,6 +90,9 @@ int on_headers_complete(http_parser *_) {
 }
 
 int http_header_compare(http_msg_t *msg, const char *name, const char *value) {
+    (void)msg;
+    (void)name;
+    (void)value;
     return -1;
 }
 
