@@ -101,6 +101,7 @@ void *epoll_loop(void *ptr) {
     http_parser_settings parser_settings;
     int waiting;
     connection_t *session;
+    uint64_t fd_counter = 0;
 
     //set up our parser settings.
     parser_settings.on_url = on_url;
@@ -140,7 +141,7 @@ void *epoll_loop(void *ptr) {
         perror("listen");
         return NULL;
     }
-    event.events = EPOLLIN | EPOLLET;
+    event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
     if(epoll_ctl(data->epoll_fd, EPOLL_CTL_ADD, data->listen_fd, &event) == -1) {
         perror("epoll_create");
         return NULL;
@@ -177,27 +178,36 @@ void *epoll_loop(void *ptr) {
                 int in_fd = -1;
                 if((in_fd = accept(data->listen_fd, &in_addr, &in_len)) == -1) {
                     if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-                        continue;
+                        goto epoll_loop_server_reenable;
                     }
                     else {
                         perror("accept");
-                        continue;
+                        goto epoll_loop_server_reenable;
                     }
                 }
                 if(unblock_socket(in_fd) == -1) {
                     //TODO maybe do extra handling of this error case?
                     perror("unblock_socket");
+                    goto epoll_loop_server_reenable;
                 }
                 if((event.data.ptr = malloc(sizeof(connection_t))) == NULL) {
                     perror("malloc");
+                    goto epoll_loop_server_reenable;
                 }
-                printf("[thread %lu] Accepted Connection\n", data->thread_id);
                 connection_t *new_session = (connection_t *)event.data.ptr;
                 init_connection(new_session, in_fd);
-                event.events = EPOLLIN | EPOLLET;
+                event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
                 if(epoll_ctl(data->epoll_fd, EPOLL_CTL_ADD, in_fd, &event) != 0) {
                     perror("epoll_ctl");
                     free_connection(new_session);
+                    goto epoll_loop_server_reenable;
+                }
+                // Renable our server fd in epoll
+epoll_loop_server_reenable:
+                events[i].events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+                if(epoll_ctl(data->epoll_fd, EPOLL_CTL_MOD, session->fd, &events[i]) != 0) {
+                    perror("epoll_ctl");
+                    continue;
                 }
             }
             else {
@@ -205,7 +215,7 @@ void *epoll_loop(void *ptr) {
                     char buf[512];
                     ssize_t count = -1;
                     if((count = read(session->fd, buf, sizeof(buf))) == -1) {
-                        if(errno != EAGAIN) {
+                        if(errno != EAGAIN || errno != EWOULDBLOCK) {
                             perror("read");
                             session->done = true;
                         }
@@ -249,6 +259,12 @@ void *epoll_loop(void *ptr) {
                 if(session->done) {
                     free_connection(session);
                     events[i].data.ptr = NULL;
+                }
+                else {
+                    events[i].events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+                    if(epoll_ctl(data->epoll_fd, EPOLL_CTL_MOD, session->fd, &events[i]) != 0) {
+                        perror("epoll_ctl");
+                    }
                 }
             }
 
