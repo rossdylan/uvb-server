@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "server.h"
 #include <stdio.h>
 #include <unistd.h>
@@ -8,6 +10,7 @@
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <errno.h>
+#include <sched.h>
 
 
 /**
@@ -94,6 +97,7 @@ void free_connection(connection_t *session) {
 // ptr is a reference to the port
 void *epoll_loop(void *ptr) {
     thread_data_t *data = ptr;
+
     int listen_fd =-1;
     struct epoll_event *events;
     struct epoll_event event;
@@ -294,6 +298,10 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
         goto new_server_free;
     }
 
+
+    cpu_set_t set;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
     for(size_t i=0; i<nthreads; i++) {
         thread_data_t *tdata = NULL;
         if((tdata = malloc(sizeof(thread_data_t))) == NULL) {
@@ -304,6 +312,10 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
         tdata->port = port;
         tdata->thread_id = i;
         tdata->counter = global_counter; // this bit is shared data
+
+        memset(&set, 0, sizeof(cpu_set_t));
+        CPU_SET(i, &set);
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &set);
         if(pthread_create(&server->threads[i], NULL, epoll_loop, (void *)tdata) != 0) {
             perror("pthread_create");
             goto new_server_free;
@@ -312,6 +324,7 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
     goto new_server_return;
 
 new_server_free:
+    pthread_attr_destroy(&attr);
     free(server->threads);
     free(server);
     server = NULL;
