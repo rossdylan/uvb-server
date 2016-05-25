@@ -1,6 +1,6 @@
 PREFIX := /usr/local
 CPPFLAGS := -I./include -I/usr/include
-CFLAGS := -Wall -Wextra -fPIC -pedantic -pthread -lhttp_parser
+CFLAGS := -Wall -Wextra -fPIC -pedantic -pthread -lhttp_parser -llmdb
 
 DEBUGFLAGS := -ggdb3
 ifeq ($(CC),clang)

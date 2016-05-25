@@ -3,3 +3,5 @@
 *.o
 uvb-server
 *.swp
+*.lmdb
+*.lmdb-lock

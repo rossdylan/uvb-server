@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <sys/epoll.h>
 #include "buffer.h"
-#include "counter.h"
+#include "lmdb_counter.h"
 #include "http.h"
 
 #define MAXEVENTS 64
@@ -26,7 +26,7 @@ typedef struct {
     int epoll_fd;
     void *data;
     uint64_t thread_id;
-    global_counter_t *counter;
+    lmdb_counter_t *counter;
 } thread_data_t;
 
 
