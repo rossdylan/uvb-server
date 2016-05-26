@@ -12,6 +12,15 @@
 #include <errno.h>
 #include <sched.h>
 
+static const char header_page[] = "--- Ultimate Victory Battle (v4.0.0) ---\n"
+                                  " Rules: \n"
+                                  "  - Increment your counter higher/faster than everyone else\n"
+                                  "  - GET /<name> Increments your counter\n"
+                                  "  - GET / Displays this page\n"
+                                  " Source: http://github.com/rossdylan/uvb-server\n"
+                                  "----------------------------------------\n\n";
+
+static uint64_t header_size = (sizeof(header_page)/sizeof(header_page[0])) - 1;
 
 /**
  * Utility Functions
@@ -257,7 +266,7 @@ epoll_loop_server_reenable:
                             }
                         }
                         else {
-                            buffer_append(&rsp_buffer, "--- Ultimate Victory Battle (v4.0.0) ---\n", 41);
+                            buffer_append(&rsp_buffer, header_page, header_size);
                             lmdb_counter_dump(data->counter, &rsp_buffer);
                             char *resp = make_http_response(200, "OK", "text/plain", rsp_buffer.buffer);
                             if(write(session->fd, resp, strlen(resp)) == -1) {
