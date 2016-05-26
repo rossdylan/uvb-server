@@ -10,10 +10,24 @@ Most people end up writing a client which floods a server with traffic. I
 thought it would be more fun to write a server which can handle the flood of
 traffic. That server is what I have attempted to build here.
 
-This branch of the UVB server is the 3rd iteration of my design. It is still
-written in C. The difference is in the year or so since I started I've gotten
-a bit better at writing C. I've also rethought the design a bit. This new
-design is documented below.
+
+Revision 4:LMDB Changelog
+-------------------------
+1. Store counters in LMDB
+    In the LMDB branch counters are persisted to disk using LMDB. In order
+    to achieve reasonable performance we use the MDB_WRITEMAP and MDB_MAPASYNC
+    options. This sacrifices write durability for speed, which in the case of
+    UVB is fine (for now).
+
+2. Modified buffer_append and added buffer_fast_clear.
+    These changes make it possible to avoid reallocing and memseting the buffer
+    memory during clear, we still use the default realloc/memset way, but for
+    printing the status page we avoid that and just use buffer_fast_clear which
+    resets the buffer index to 0; These changes will probably be propogated out
+    the master soon.
+
+3. Filter out non azAZ09 characters, limit names to 15 characters
+    Because people are shitlords
 
 Revision 4 Changelog
 --------------------

@@ -113,7 +113,6 @@ void *epoll_loop(void *ptr) {
     parser_settings.on_header_value = on_header_value;
     parser_settings.on_headers_complete = on_headers_complete;
     parser_settings.on_message_begin = NULL;
-    parser_settings.on_status = NULL;
     parser_settings.on_message_complete = NULL;
     parser_settings.on_body = NULL;
 
