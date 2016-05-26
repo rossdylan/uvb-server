@@ -181,12 +181,12 @@ void *epoll_loop(void *ptr) {
             if(session == NULL) {
                 continue;
             }
-            if(epoll_error(events[i])) {
-                free_connection(session);
-                events[i].data.ptr = NULL;
-                printf("EPOLL ERROR, cleaning up\n");
-                continue;
-            }
+            //if(epoll_error(events[i])) {
+            //    free_connection(session);
+            //    events[i].data.ptr = NULL;
+            //    perror("epoll_error");
+            //    continue;
+            //}
             else if(data->listen_fd == session->fd) {
                 struct sockaddr in_addr;
                 socklen_t in_len = sizeof(in_addr);
@@ -250,6 +250,7 @@ epoll_loop_server_reenable:
                     }
                     // REMOVE BUFFER SHIT - ADD PARSER SHIT
                     if(session->msg.done) {
+                        bool err = false;
                         if(http_url_compare(&session->msg, "/") != 0) {
                             // OH GOD DON'T LOOK I'M A HIDEOUS HACK
                             // We peak into the buffer and take away the first
@@ -261,21 +262,33 @@ epoll_loop_server_reenable:
                                 session->msg.url.buffer[15] = '\0';
                             }
                             lmdb_counter_inc(data->counter, key);
-                            if(write(session->fd, response, strlen(response)) == -1) {
+                            if(send(session->fd, response, strlen(response), MSG_NOSIGNAL) == -1) {
                                 perror("write");
+                                err = true;
                             }
                         }
                         else {
                             buffer_append(&rsp_buffer, header_page, header_size);
                             lmdb_counter_dump(data->counter, &rsp_buffer);
                             char *resp = make_http_response(200, "OK", "text/plain", rsp_buffer.buffer);
-                            if(write(session->fd, resp, strlen(resp)) == -1) {
+                            if(send(session->fd, resp, strlen(resp), MSG_NOSIGNAL) == -1) {
                                 perror("write");
+                                err = true;
                             }
                             free(resp);
                             buffer_fast_clear(&rsp_buffer);
                         }
-                        session->done = true;
+                        // We are going to try some /pipelining/ bullshit here
+                        if(err) {
+                            session->done = true;
+                        }
+                        else {
+                            free_http_msg(&session->msg);
+                            init_http_msg(&session->msg);
+                            memset(&session->parser, 0, sizeof(http_parser));
+                            http_parser_init(&session->parser, HTTP_REQUEST);
+                            session->done = false;
+                        }
                         break;
                     }
                 }
