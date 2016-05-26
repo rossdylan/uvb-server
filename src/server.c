@@ -156,7 +156,10 @@ void *epoll_loop(void *ptr) {
         return NULL;
     }
 
+    buffer_t rsp_buffer;
+    buffer_init(&rsp_buffer);
     while(true) {
+        //lmdb_counter_sync(data->counter);
         waiting = epoll_wait(data->epoll_fd, events, MAXEVENTS, -1);
         if(waiting < 0) {
             if(errno != EINTR) {
@@ -240,22 +243,25 @@ epoll_loop_server_reenable:
                     // REMOVE BUFFER SHIT - ADD PARSER SHIT
                     if(session->msg.done) {
                         if(http_url_compare(&session->msg, "/stats") == 0) {
-                            uint64_t value =  0;
-                            char *thingy;
-                            asprintf(&thingy, "VALUE = %lu\n", value);
-                            char *resp = make_http_response(200, "OK", "text/plain", thingy);
+                            lmdb_counter_dump(data->counter, &rsp_buffer);
+                            char *resp = make_http_response(200, "OK", "text/plain", rsp_buffer.buffer);
                             if(write(session->fd, resp, strlen(resp)) == -1) {
                                 perror("write");
                             }
                             free(resp);
-                            free(thingy);
+                            buffer_fast_clear(&rsp_buffer);
                         }
                         else if(http_url_compare(&session->msg, "/") != 0) {
                             // OH GOD DON'T LOOK I'M A HIDEOUS HACK
                             // We peak into the buffer and take away the first
                             // character in order to just get the key
                             char *key = (char *)(session->msg.url.buffer + 1);
-                            uint64_t new_val = lmdb_counter_inc(data->counter, key);
+                            // Forcefully cap out keys at 15 characters
+                            // 16th char is NULL
+                            if(buffer_length(&session->msg.url) > 15) {
+                                session->msg.url.buffer[15] = '\0';
+                            }
+                            lmdb_counter_inc(data->counter, key);
                             if(write(session->fd, response, strlen(response)) == -1) {
                                 perror("write");
                             }
