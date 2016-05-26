@@ -29,3 +29,4 @@ void buffer_free(buffer_t *buffer);
 int buffer_clear(buffer_t *buffer);
 uint64_t buffer_length(buffer_t *buffer);
 char buffer_char_at(buffer_t *buffer, uint64_t index);
+int buffer_fast_clear(buffer_t *buffer);

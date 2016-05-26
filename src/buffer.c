@@ -73,6 +73,7 @@ uint64_t buffer_append(buffer_t *buffer, const char *string, size_t len) {
     }
     memmove(&buffer->buffer[buffer->data_size], string, len);
     buffer->data_size = new_data_size;
+    buffer->buffer[buffer->data_size] = '\0';
     return buffer->data_size;
 }
 
@@ -101,6 +102,10 @@ int buffer_clear(buffer_t *buffer) {
     return 0;
 }
 
+int buffer_fast_clear(buffer_t *buffer) {
+    buffer->data_size = 0;
+    return 0;
+}
 /**
  * Free the buffer
  * */
