@@ -258,6 +258,7 @@ epoll_loop_server_reenable:
                             }
                         }
                         else {
+                            buffer_append(&rsp_buffer, "--- Ultimate Victory Battle (v4.0.0) ---\n", 41);
                             lmdb_counter_dump(data->counter, &rsp_buffer);
                             char *resp = make_http_response(200, "OK", "text/plain", rsp_buffer.buffer);
                             if(write(session->fd, resp, strlen(resp)) == -1) {
