@@ -242,16 +242,7 @@ epoll_loop_server_reenable:
                     }
                     // REMOVE BUFFER SHIT - ADD PARSER SHIT
                     if(session->msg.done) {
-                        if(http_url_compare(&session->msg, "/stats") == 0) {
-                            lmdb_counter_dump(data->counter, &rsp_buffer);
-                            char *resp = make_http_response(200, "OK", "text/plain", rsp_buffer.buffer);
-                            if(write(session->fd, resp, strlen(resp)) == -1) {
-                                perror("write");
-                            }
-                            free(resp);
-                            buffer_fast_clear(&rsp_buffer);
-                        }
-                        else if(http_url_compare(&session->msg, "/") != 0) {
+                        if(http_url_compare(&session->msg, "/") != 0) {
                             // OH GOD DON'T LOOK I'M A HIDEOUS HACK
                             // We peak into the buffer and take away the first
                             // character in order to just get the key
@@ -265,6 +256,15 @@ epoll_loop_server_reenable:
                             if(write(session->fd, response, strlen(response)) == -1) {
                                 perror("write");
                             }
+                        }
+                        else {
+                            lmdb_counter_dump(data->counter, &rsp_buffer);
+                            char *resp = make_http_response(200, "OK", "text/plain", rsp_buffer.buffer);
+                            if(write(session->fd, resp, strlen(resp)) == -1) {
+                                perror("write");
+                            }
+                            free(resp);
+                            buffer_fast_clear(&rsp_buffer);
                         }
                         session->done = true;
                         break;
