@@ -378,7 +378,6 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
     goto new_server_return;
 
 new_server_free:
-    pthread_attr_destroy(&attr);
     free(server->threads);
     free(server);
     server = NULL;
@@ -386,6 +385,7 @@ new_server_free:
         lmdb_counter_destroy(counter);
     }
 new_server_return:
+    pthread_attr_destroy(&attr);
     return server;
 }
 
