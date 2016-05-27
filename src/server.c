@@ -231,7 +231,6 @@ epoll_loop_server_reenable:
                     ssize_t count = -1;
                     if((count = read(session->fd, buf, sizeof(buf))) == -1) {
                         if(errno != EAGAIN || errno != EWOULDBLOCK) {
-                            perror("read");
                             session->done = true;
                         }
                         break;
@@ -263,7 +262,6 @@ epoll_loop_server_reenable:
                             }
                             lmdb_counter_inc(data->counter, key);
                             if(send(session->fd, response, strlen(response), MSG_NOSIGNAL) == -1) {
-                                perror("write");
                                 err = true;
                             }
                         }
@@ -272,7 +270,6 @@ epoll_loop_server_reenable:
                             lmdb_counter_dump(data->counter, &rsp_buffer);
                             char *resp = make_http_response(200, "OK", "text/plain", rsp_buffer.buffer);
                             if(send(session->fd, resp, strlen(resp), MSG_NOSIGNAL) == -1) {
-                                perror("write");
                                 err = true;
                             }
                             free(resp);
