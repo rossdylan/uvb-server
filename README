@@ -29,6 +29,12 @@ Revision 4:LMDB Changelog
 3. Filter out non azAZ09 characters, limit names to 15 characters
     Because people are shitlords
 
+4. Pipelined requests.
+    Previously there was a 1-1 mapping between tcp stream and request. So when
+    a single request was finished, we clean everything up, and close the
+    connection. Now we don't assume this, and instead just keep handling
+    http requests from a connection until it stops.
+
 Revision 4 Changelog
 --------------------
 1. Use SO_REUSEPORT
