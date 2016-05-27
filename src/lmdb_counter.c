@@ -1,9 +1,16 @@
+/**
+ * File: lmdb_counter.c
+ * Implementation of the LMDB counter. Persist uint64_t counters to disk using
+ * LMDB. We explicity use MDB_WRITEMAP | MDB_MAPASYNC in order to get the speed
+ * required for UVB. As such we do not have write durability. You have been
+ * warned.
+ */
+
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "lmdb_counter.h"
-
 
 lmdb_counter_t *lmdb_counter_init(const char *path, uint64_t readers) {
     lmdb_counter_t *lc = NULL;
@@ -11,39 +18,22 @@ lmdb_counter_t *lmdb_counter_init(const char *path, uint64_t readers) {
         perror("calloc");
         return NULL;
     }
-    if(mdb_env_create(&lc->env) != MDB_SUCCESS) {
-        perror("mdb_env_create");
-        return NULL;
-    }
-    if(mdb_env_set_maxreaders(lc->env, readers) != MDB_SUCCESS) {
-        perror("mdb_env_set_maxreaders");
-        return NULL;
-    }
 
-    // who the fuck knows why this number is chosen
-    // it was in an example.
-    if(mdb_env_set_mapsize(lc->env, 10485760) != MDB_SUCCESS) {
-        perror("mdb_env_set_mapsize");
-        return NULL;
-    }
-    if(mdb_env_open(lc->env, path, MDB_WRITEMAP | MDB_MAPASYNC | MDB_NOSUBDIR, 0664) != MDB_SUCCESS) {
-        perror("mdb_env_open");
-        return NULL;
-    }
+    // Setup and open the lmdb enviornment
+    MDB_CHECK(mdb_env_create(&lc->env), MDB_SUCCESS, NULL);
+    MDB_CHECK(mdb_env_set_maxreaders(lc->env, readers), MDB_SUCCESS, NULL);
+    MDB_CHECK(mdb_env_set_mapsize(lc->env, MDB_MAPSIZE), MDB_SUCCESS, NULL);
+    MDB_CHECK(mdb_env_open(lc->env, path, MDB_WRITEMAP | MDB_MAPASYNC | MDB_NOSUBDIR, 0664), MDB_SUCCESS, NULL);
+
     MDB_txn *txn = NULL;
-    if(mdb_txn_begin(lc->env, NULL, 0, &txn) != MDB_SUCCESS) {
-        perror("mdb_txn_begin");
-        return NULL;
-    }
+    MDB_CHECK(mdb_txn_begin(lc->env, NULL, 0, &txn), MDB_SUCCESS, NULL);
 
     if((lc->dbi = calloc(1, sizeof(MDB_dbi))) == NULL) {
         perror("calloc");
         return NULL;
     }
-    if(mdb_dbi_open(txn, NULL, 0, lc->dbi) != MDB_SUCCESS) {
-        perror("mdb_dbi_open");
-        return NULL;
-    }
+
+    MDB_CHECK(mdb_dbi_open(txn, NULL, 0, lc->dbi), MDB_SUCCESS, NULL);
     mdb_txn_commit(txn);
     return lc;
 }
@@ -51,15 +41,25 @@ lmdb_counter_t *lmdb_counter_init(const char *path, uint64_t readers) {
 
 void lmdb_counter_destroy(lmdb_counter_t *lc) {
     mdb_dbi_close(lc->env, *lc->dbi);
+    free(lc->dbi);
     mdb_env_close(lc->env);
     free(lc);
 }
 
+
+/**
+ * Helper function for filtering out non-alphanumeric characters.
+ */
 static inline bool is_ascii(char c) {
     return (c > 47 && c < 58) || (c > 64 && c < 91) || (c > 96 && c < 123);
 }
 
 
+/**
+ * This function works in stages. First we clean up the given key to prevent
+ * any trickery by users. Then we retrieve the existing value, increment it,
+ * and store it back in the db.
+ */
 uint64_t lmdb_counter_inc(lmdb_counter_t *lc, const char *key) {
     char clean_key[16]; // 15 characters + \0
     int clean_index = 0;
@@ -91,12 +91,11 @@ uint64_t lmdb_counter_inc(lmdb_counter_t *lc, const char *key) {
     update.mv_size = sizeof(uint64_t);
     update.mv_data = (void *)&stored_counter;
     mdb_put(txn, *lc->dbi, &mkey, &update, 0);
-    if(mdb_txn_commit(txn) != MDB_SUCCESS) {
-        perror("mdb_txn_commit");
-        return 0;
-    }
+
+    MDB_CHECK(mdb_txn_commit(txn), MDB_SUCCESS, 0);
     return stored_counter;
 }
+
 
 uint64_t lmdb_counter_get(lmdb_counter_t *lc, const char *key) {
     MDB_dbi dbi;
@@ -121,6 +120,7 @@ uint64_t lmdb_counter_get(lmdb_counter_t *lc, const char *key) {
 void lmdb_counter_sync(lmdb_counter_t *lc) {
     mdb_env_sync(lc->env, 1);
 }
+
 
 void lmdb_counter_dump(lmdb_counter_t *lc, buffer_t *output) {
     MDB_val key, data;
