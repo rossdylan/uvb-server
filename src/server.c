@@ -19,13 +19,12 @@ static const char header_page[] = "--- Ultimate Victory Battle (v4.0.0) ---\n"
                                   "  - GET / Displays this page\n"
                                   " Source: http://github.com/rossdylan/uvb-server\n"
                                   "----------------------------------------\n\n";
-
 static uint64_t header_size = (sizeof(header_page)/sizeof(header_page[0])) - 1;
 
-/**
- * Utility Functions
- */
 
+/**
+ * Use asprintf to generate a HTTP response.
+ */
 char *make_http_response(int status_code, const char *status, const char *content_type, const char* response) {
     char *full_response;
     asprintf(&full_response, "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %lu\r\n\r\n%s",
@@ -33,7 +32,10 @@ char *make_http_response(int status_code, const char *status, const char *conten
     return full_response;
 }
 
-// Set a socket fd to be nonblocking
+
+/**
+ * Unblock the given socket.
+ */
 int unblock_socket(int fd) {
     int flags;
     if((flags = fcntl(fd, F_GETFL, 0)) == -1) {
@@ -49,7 +51,10 @@ int unblock_socket(int fd) {
 }
 
 
-// Return a server fd
+/**
+ * Create a server socket on the given port.
+ * SO_REUSEPORT | SO_REUSEADDR are used
+ */
 int make_server_socket(const char *port) {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
@@ -83,11 +88,18 @@ int make_server_socket(const char *port) {
 }
 
 
+/**
+ * Check if epoll has errored.
+ */
 static inline bool epoll_error(struct epoll_event e) {
     return e.events & EPOLLERR || e.events & EPOLLHUP || !(e.events & EPOLLIN);
 }
 
 
+/**
+ * Set the initial state of a connection.
+ * Initialize the parser, allocate and setup the http_msg_t struct
+ */
 void init_connection(connection_t *session, int fd) {
     session->fd = fd;
     http_parser_init(&session->parser, HTTP_REQUEST);
@@ -95,6 +107,10 @@ void init_connection(connection_t *session, int fd) {
     session->done = false;
 }
 
+
+/**
+ * Deallocate session structures and close the socket.
+ */
 void free_connection(connection_t *session) {
     close(session->fd);
     free_http_msg(&session->msg);
@@ -102,8 +118,22 @@ void free_connection(connection_t *session) {
     free(session);
 }
 
-// Function executed within a pthread to multiplex epoll acrossed threads
-// ptr is a reference to the port
+
+static void configure_parser(http_parser_settings *settings) {
+    settings->on_url = on_url;
+    settings->on_header_field = on_header_field;
+    settings->on_header_value = on_header_value;
+    settings->on_headers_complete = on_headers_complete;
+    settings->on_message_begin = NULL;
+    settings->on_message_complete = NULL;
+    settings->on_body = NULL;
+}
+
+
+/**
+ * Function executed within a pthread to multiplex epoll acrossed threads
+ * ptr is a reference to the port
+ */
 void *epoll_loop(void *ptr) {
     thread_data_t *data = ptr;
 
@@ -115,23 +145,18 @@ void *epoll_loop(void *ptr) {
     int waiting;
     connection_t *session;
     uint64_t fd_counter = 0;
+    buffer_t rsp_buffer;
+    buffer_init(&rsp_buffer);
 
-    //set up our parser settings.
-    parser_settings.on_url = on_url;
-    parser_settings.on_header_field = on_header_field;
-    parser_settings.on_header_value = on_header_value;
-    parser_settings.on_headers_complete = on_headers_complete;
-    parser_settings.on_message_begin = NULL;
-    parser_settings.on_message_complete = NULL;
-    parser_settings.on_body = NULL;
+    configure_parser(&parser_settings);
 
     listen_fd = make_server_socket(data->port);
-    if(listen_fd < 0) {
+    if((data->listen_fd = make_server_socket(data->port)) < 0) {
         perror("make_server_socket");
         return NULL;
     }
     data->listen_fd = listen_fd;
-    // make our epoll file descriptor
+
     if((data->epoll_fd = epoll_create1(0)) == -1) {
         perror("epoll_create");
         return NULL;
@@ -145,6 +170,7 @@ void *epoll_loop(void *ptr) {
     connection_t *server_session = (connection_t *)event.data.ptr;
     server_session->fd = data->listen_fd;
     server_session->done = false;
+
     if(unblock_socket(data->listen_fd) == -1) {
         perror("unblock_socket");
         return NULL;
@@ -153,6 +179,7 @@ void *epoll_loop(void *ptr) {
         perror("listen");
         return NULL;
     }
+
     event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
     if(epoll_ctl(data->epoll_fd, EPOLL_CTL_ADD, data->listen_fd, &event) == -1) {
         perror("epoll_create");
@@ -164,10 +191,7 @@ void *epoll_loop(void *ptr) {
         return NULL;
     }
 
-    buffer_t rsp_buffer;
-    buffer_init(&rsp_buffer);
     while(true) {
-        //lmdb_counter_sync(data->counter);
         waiting = epoll_wait(data->epoll_fd, events, MAXEVENTS, -1);
         if(waiting < 0) {
             if(errno != EINTR) {
@@ -181,16 +205,15 @@ void *epoll_loop(void *ptr) {
             if(session == NULL) {
                 continue;
             }
-            //if(epoll_error(events[i])) {
-            //    free_connection(session);
-            //    events[i].data.ptr = NULL;
-            //    perror("epoll_error");
-            //    continue;
-            //}
+
+            /**
+             * Handles the accept case, add a client new socket to epoll.
+             */
             else if(data->listen_fd == session->fd) {
                 struct sockaddr in_addr;
                 socklen_t in_len = sizeof(in_addr);
                 int in_fd = -1;
+
                 if((in_fd = accept(data->listen_fd, &in_addr, &in_len)) == -1) {
                     if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                         goto epoll_loop_server_reenable;
@@ -200,6 +223,7 @@ void *epoll_loop(void *ptr) {
                         goto epoll_loop_server_reenable;
                     }
                 }
+
                 if(unblock_socket(in_fd) == -1) {
                     //TODO maybe do extra handling of this error case?
                     perror("unblock_socket");
@@ -209,6 +233,7 @@ void *epoll_loop(void *ptr) {
                     perror("malloc");
                     goto epoll_loop_server_reenable;
                 }
+
                 connection_t *new_session = (connection_t *)event.data.ptr;
                 init_connection(new_session, in_fd);
                 event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
@@ -217,7 +242,7 @@ void *epoll_loop(void *ptr) {
                     free_connection(new_session);
                     goto epoll_loop_server_reenable;
                 }
-                // Renable our server fd in epoll
+
 epoll_loop_server_reenable:
                 events[i].events = EPOLLIN | EPOLLET | EPOLLONESHOT;
                 if(epoll_ctl(data->epoll_fd, EPOLL_CTL_MOD, session->fd, &events[i]) != 0) {
@@ -247,7 +272,6 @@ epoll_loop_server_reenable:
                         session->done = true;
                         break;
                     }
-                    // REMOVE BUFFER SHIT - ADD PARSER SHIT
                     if(session->msg.done) {
                         bool err = false;
                         if(http_url_compare(&session->msg, "/") != 0) {
@@ -275,11 +299,12 @@ epoll_loop_server_reenable:
                             free(resp);
                             buffer_fast_clear(&rsp_buffer);
                         }
-                        // We are going to try some /pipelining/ bullshit here
                         if(err) {
                             session->done = true;
                         }
                         else {
+                            // We are now pipelining requests, instead of exiting
+                            // out we just reinit our session state.
                             free_http_msg(&session->msg);
                             init_http_msg(&session->msg);
                             memset(&session->parser, 0, sizeof(http_parser));
