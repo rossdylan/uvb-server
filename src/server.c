@@ -59,7 +59,7 @@ int make_server_socket(const char *port) {
         if(server_fd == -1) {
             continue;
         }
-        setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT | SO_REUSEADDR, &reuse, sizeof(reuse));
+        setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse));
         if(bind(server_fd, rp->ai_addr, rp->ai_addrlen) == 0) {
             break;
         }
