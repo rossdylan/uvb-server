@@ -39,7 +39,7 @@ void *timer_loop(void *ptr) {
 int timer_mgr_init(timer_mgr_t *t) {
     pthread_mutex_init(&t->mutex, NULL);
     t->epoll_fd = -1;
-
+    LIST_INIT(&t->funcs)
     if((t->epoll_fd = epoll_create1(0)) == -1) {
         perror("epoll_create");
         return -1;

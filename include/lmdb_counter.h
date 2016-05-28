@@ -66,3 +66,8 @@ void lmdb_counter_sync(lmdb_counter_t *lc);
  * the string representation of the kv pairs to the given buffer
  */
 void lmdb_counter_dump(lmdb_counter_t *lc, buffer_t *buffer);
+
+/**
+ * Run via the timer system every 10 seconds to generate req/s statistics
+ */
+int lmdb_counter_gen_stats(void *data);

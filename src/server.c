@@ -342,10 +342,11 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
     }
     server->nthreads = nthreads;
     server->port = port;
-    timer_mgr_init(&server->timers);
     if((counter = lmdb_counter_init("./uvb.lmdb", nthreads)) == NULL) {
         goto new_server_free;
     }
+    timer_mgr_init(&server->timers);
+    register_timer(&server->timers, lmdb_counter_gen_stats, 10, (void *)counter);
 
     // Make our array of threads
     if((server->threads = calloc(nthreads, sizeof(pthread_t))) == NULL) {

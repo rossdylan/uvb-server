@@ -123,18 +123,75 @@ void lmdb_counter_sync(lmdb_counter_t *lc) {
 
 
 void lmdb_counter_dump(lmdb_counter_t *lc, buffer_t *output) {
-    MDB_val key, data;
+    MDB_val key, data, rps_key, rps_data;
     MDB_txn *txn = NULL;
     MDB_cursor *cursor = NULL;
     mdb_txn_begin(lc->env, NULL, MDB_RDONLY, &txn);
     mdb_cursor_open(txn, *lc->dbi, &cursor);
     int rc = 0;
     char *tmp_str = NULL;
+    int size = 0;
+    uint64_t rps = 0;
     while((rc = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
-        int size = asprintf(&tmp_str, "%s: %lu\n", (char *)key.mv_data, *(uint64_t *)data.mv_data);
+        if((*(char *)key.mv_data) == '_') {
+            continue;
+        }
+        size = asprintf(&tmp_str, "_%s_rps", (char *)key.mv_data);
+        rps_key.mv_size = size;
+        rps_key.mv_data = tmp_str;
+        if(mdb_get(txn, *lc->dbi, &rps_key, &rps_data) == MDB_SUCCESS) {
+            rps = *(uint64_t *)rps_data.mv_data;
+        }
+        free(tmp_str);
+        size = asprintf(&tmp_str, "%s: %lu - %lurps\n", (char *)key.mv_data, *(uint64_t *)data.mv_data, rps);
         buffer_append(output, tmp_str, size);
         free(tmp_str);
     }
     mdb_cursor_close(cursor);
     mdb_txn_abort(txn);
+}
+
+
+int lmdb_counter_gen_stats(void *tdata) {
+    lmdb_counter_t *lc = (lmdb_counter_t *)tdata;
+    MDB_val key, data;
+    MDB_val stat_key, stat_data;
+    MDB_txn *txn = NULL;
+    MDB_cursor *cursor = NULL;
+    mdb_txn_begin(lc->env, NULL, 0, &txn);
+    mdb_cursor_open(txn, *lc->dbi, &cursor);
+    int rc = 0;
+    char *tmp_str = NULL;
+    uint64_t last_counter = 0;
+    uint64_t reqs_per_sec = 0;
+    int size = 0;
+    while((rc = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
+        if((*(char *)key.mv_data) == '_') {
+            continue;
+        }
+        size = asprintf(&tmp_str, "_%s_last", (char *)key.mv_data);
+        stat_key.mv_size = size;
+        stat_key.mv_data = tmp_str;
+        last_counter = 0;
+        if(mdb_get(txn, *lc->dbi, &stat_key, &stat_data) == MDB_SUCCESS) {
+            last_counter = *(uint64_t *)stat_data.mv_data;
+        }
+        // runs every 10secs
+        reqs_per_sec = (*(uint64_t *)data.mv_data - last_counter) / 10;
+        stat_data.mv_size = sizeof(uint64_t);
+        stat_data.mv_data = data.mv_data;
+        mdb_put(txn, *lc->dbi, &stat_key, &data, 0);
+        free(tmp_str);
+        size = asprintf(&tmp_str, "_%s_rps", (char *)key.mv_data);
+        stat_key.mv_size = size;
+        stat_key.mv_data = tmp_str;
+        stat_data.mv_size = sizeof(uint64_t);
+        stat_data.mv_data = &reqs_per_sec;
+        mdb_put(txn, *lc->dbi, &stat_key, &stat_data, 0);
+        free(tmp_str);
+
+    }
+    mdb_cursor_close(cursor);
+    mdb_txn_commit(txn);
+    return 0;
 }
