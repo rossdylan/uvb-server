@@ -13,6 +13,8 @@
 #include "buffer.h"
 #include "lmdb_counter.h"
 #include "http.h"
+#include "timers.h"
+
 
 #define MAXEVENTS 64
 #define MAXREAD 512
@@ -25,6 +27,7 @@
 typedef struct {
     const char *port;
     size_t nthreads;
+    timer_mgr_t timers;
     pthread_t *threads;
 } server_t;
 

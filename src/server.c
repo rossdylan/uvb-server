@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <sched.h>
 
+
 static const char header_page[] = "--- Ultimate Victory Battle (v4.0.0) ---\n"
                                   " Rules: \n"
                                   "  - Increment your counter higher/faster than everyone else\n"
@@ -144,7 +145,6 @@ void *epoll_loop(void *ptr) {
     http_parser_settings parser_settings;
     int waiting;
     connection_t *session;
-    uint64_t fd_counter = 0;
     buffer_t rsp_buffer;
     buffer_init(&rsp_buffer);
 
@@ -331,6 +331,7 @@ epoll_loop_server_reenable:
 }
 
 server_t *new_server(const size_t nthreads, const char *addr, const char *port) {
+    (void)addr;
     // set up out thread local storage for the current session
     pthread_key_create(&current_session, NULL);
     server_t *server = NULL;
@@ -341,6 +342,7 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
     }
     server->nthreads = nthreads;
     server->port = port;
+    timer_mgr_init(&server->timers);
     if((counter = lmdb_counter_init("./uvb.lmdb", nthreads)) == NULL) {
         goto new_server_free;
     }
