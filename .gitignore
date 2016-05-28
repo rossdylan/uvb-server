@@ -5,3 +5,4 @@ uvb-server
 *.swp
 *.lmdb
 *.lmdb-lock
+cov-int/*
