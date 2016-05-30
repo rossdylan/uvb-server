@@ -205,7 +205,11 @@ void *epoll_loop(void *ptr) {
             if(session == NULL) {
                 continue;
             }
-
+            if(epoll_error(events[i])) {
+                free_connection(session);
+                events[i].data.ptr = NULL;
+                continue;
+            }
             /**
              * Handles the accept case, add a client new socket to epoll.
              */
@@ -304,6 +308,7 @@ epoll_loop_server_reenable:
                             free(resp);
                             buffer_fast_clear(&rsp_buffer);
                         }
+
                         if(err) {
                             session->done = true;
                         }
