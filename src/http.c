@@ -14,7 +14,7 @@ void init_http_msg(http_msg_t *msg) {
     msg->current_header = 0;
     msg->header_ready = false;
     msg->reading_value = false;
-    memset(&msg->headers, 0, sizeof(msg->headers));
+    //memset(&msg->headers, 0, sizeof(msg->headers));
     buffer_init(&msg->url);
     msg->done = false;
 }

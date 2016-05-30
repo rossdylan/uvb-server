@@ -23,6 +23,10 @@ all:
 
 debug:
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEBUGFLAGS) -o $(EXECUTABLE) $(SOURCE)
+
+profile:
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEBUGFLAGS) -pg -o $(EXECUTABLE) $(SOURCE)
+
 release:
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEBUGFLAGS) -O2 -o $(EXECUTABLE) $(SOURCE)
 

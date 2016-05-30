@@ -12,7 +12,7 @@ typedef struct {
     bool header_ready; // can we put data into the header yet?
     bool reading_value;
     bool done;
-    http_header_t headers[2000];
+    http_header_t headers[20];
     buffer_t url;
 } http_msg_t;
 
