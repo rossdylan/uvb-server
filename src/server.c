@@ -274,6 +274,11 @@ epoll_loop_server_reenable:
                     }
                     if(session->msg.done) {
                         bool err = false;
+#ifdef GPROF
+                        if(http_url_compare(&session->msg, "/quit") == 0) {
+                            exit(0);
+                        }
+#endif
                         if(http_url_compare(&session->msg, "/") != 0) {
                             // OH GOD DON'T LOOK I'M A HIDEOUS HACK
                             // We peak into the buffer and take away the first
