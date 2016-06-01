@@ -36,24 +36,14 @@ free_http_msg_url_free:
     buffer_free(&msg->url);
 }
 
-void set_current_session(connection_t *session) {
-    pthread_setspecific(current_session, session);
-}
-
-connection_t *get_current_session(void) {
-    return (connection_t *)pthread_getspecific(current_session);
-}
-
-int on_url(http_parser *_, const char *at, size_t len) {
-    (void)_;
-    connection_t *session = get_current_session();
+int on_url(http_parser *hp, const char *at, size_t len) {
+    connection_t *session = hp->data;
     buffer_append(&session->msg.url, at, len);
     return 0;
 }
 
-int on_header_field(http_parser *_, const char *at, size_t len) {
-    (void)_;
-    connection_t *session = get_current_session();
+int on_header_field(http_parser *hp, const char *at, size_t len) {
+    connection_t *session = hp->data;
     if(session->msg.reading_value) {
         session->msg.current_header++;
         session->msg.reading_value = false;
@@ -68,18 +58,16 @@ int on_header_field(http_parser *_, const char *at, size_t len) {
     return 0;
 }
 
-int on_header_value(http_parser *_, const char *at, size_t len) {
-    (void)_;
-    connection_t *session = get_current_session();
+int on_header_value(http_parser *hp, const char *at, size_t len) {
+    connection_t *session = hp->data;
     session->msg.reading_value = true;
     uint64_t current_header = session->msg.current_header;
     buffer_append(&session->msg.headers[current_header].value, at, len);
     return 0;
 }
 
-int on_headers_complete(http_parser *_) {
-    (void)_;
-    connection_t *session = get_current_session();
+int on_headers_complete(http_parser *hp) {
+    connection_t *session = hp->data;
     for(uint64_t i=0; i<session->msg.current_header; i++) {
         buffer_truncate(&session->msg.headers[i].value);
         buffer_truncate(&session->msg.headers[i].name);

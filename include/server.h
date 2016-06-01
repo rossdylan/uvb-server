@@ -43,7 +43,6 @@ typedef struct {
     int epoll_fd;
     void *data;
     uint64_t thread_id;
-    lmdb_counter_t *counter;
 } thread_data_t;
 
 

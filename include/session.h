@@ -18,7 +18,6 @@ typedef struct {
 
 typedef struct {
     int fd;
-    bool done;
     http_msg_t msg;
     http_parser parser;
 } connection_t;
