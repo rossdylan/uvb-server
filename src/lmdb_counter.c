@@ -6,6 +6,7 @@
  * warned.
  */
 
+#define _GNU_SOURCE
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>

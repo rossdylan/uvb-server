@@ -9,8 +9,6 @@
 
 // a thread local that will keep track of the currently active connection_t in order for http-parser to do its thing
 // We use a constructor to initialize this
-static pthread_key_t current_session;
-
 
 void init_http_header(http_header_t *header);
 void init_http_msg(http_msg_t *msg);
