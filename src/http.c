@@ -1,10 +1,6 @@
 #include "http.h"
 #include <string.h>
 
-__attribute__((constructor)) static void init_current_session(void) {
-    pthread_key_create(&current_session, NULL);
-}
-
 void init_http_header(http_header_t *header) {
     buffer_init(&header->name);
     buffer_init(&header->value);
