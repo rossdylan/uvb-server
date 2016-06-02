@@ -1,5 +1,8 @@
 #define _GNU_SOURCE
 
+#define xstr(x) str(x)
+#define str(x) #x
+
 #include "server.h"
 #include <stdio.h>
 #include <unistd.h>
@@ -345,7 +348,7 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
     }
     server->nthreads = nthreads;
     server->port = port;
-    if((counter = lmdb_counter_init("./uvb.lmdb", nthreads)) == NULL) {
+    if((counter = lmdb_counter_init(xstr(DB_PREFIX) "/uvb.lmdb", nthreads)) == NULL) {
         goto new_server_free;
     }
     timer_mgr_init(&server->timers);

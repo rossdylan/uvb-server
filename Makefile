@@ -18,6 +18,9 @@ SOURCE := $(wildcard src/*.c)
 
 EXECUTABLE := uvb-server
 
+DB_PREFIX := /var/db
+CFLAGS += -D DB_PREFIX=$(DB_PREFIX)
+
 all:
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $(EXECUTABLE) $(SOURCE)
 
