@@ -1,4 +1,4 @@
-PREFIX := /usr/local
+DESTDIR := /usr/local
 CPPFLAGS := -I./include -I/usr/include
 CFLAGS := -Wall -Wextra -fPIC -pedantic -pthread -lhttp_parser -llmdb
 
@@ -32,11 +32,11 @@ release:
 
 
 install:
-	install -D $(EXECUTABLE) $(PREFIX)/bin/$(EXECUTABLE)
+	install -D $(EXECUTABLE) $(DESTDIR)/bin/$(EXECUTABLE)
 
 clean:
 	$(RM) $(EXECUTABLE) counters.db names.db
 
 uninstall:
-	$(RM) $(PREFIX)/bin/$(EXECUTABLE)
+	$(RM) $(DESTDIR)/bin/$(EXECUTABLE)
 
