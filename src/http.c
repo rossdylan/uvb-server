@@ -64,11 +64,6 @@ int on_header_value(http_parser *hp, const char *at, size_t len) {
 
 int on_headers_complete(http_parser *hp) {
     connection_t *session = hp->data;
-    for(uint64_t i=0; i<session->msg.current_header; i++) {
-        buffer_truncate(&session->msg.headers[i].value);
-        buffer_truncate(&session->msg.headers[i].name);
-    }
-    buffer_truncate(&session->msg.url);
     session->msg.done = true;
     return 0;
 }
