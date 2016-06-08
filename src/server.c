@@ -164,8 +164,13 @@ static int on_message_complete(http_parser *hp) {
 
 static void configure_parser(http_parser_settings *settings) {
     settings->on_url = on_url;
+#ifdef UVB_PARSE_HEADERS
     settings->on_header_field = on_header_field;
     settings->on_header_value = on_header_value;
+#else
+    settings->on_header_field = NULL;
+    settings->on_header_value = NULL;
+#endif
     settings->on_headers_complete = on_headers_complete;
     settings->on_message_begin = NULL;
     settings->on_message_complete = on_message_complete;

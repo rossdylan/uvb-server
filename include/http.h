@@ -4,7 +4,8 @@
 #include <stdbool.h>
 #include "session.h"
 
-
+// Do we care about actually storing headers?
+//#define UVB_PARSE_HEADERS
 
 
 // a thread local that will keep track of the currently active connection_t in order for http-parser to do its thing
