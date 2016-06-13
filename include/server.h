@@ -11,14 +11,14 @@
 #include <pthread.h>
 #include <sys/epoll.h>
 #include "buffer.h"
-#include "lmdb_counter.h"
+#include "counter.h"
 #include "http.h"
 #include "timers.h"
 
 
 #define MAXEVENTS 64
 #define MAXREAD 512
-
+#define STATS_SECS 10
 
 /**
  * Structure for the actual server. Stores the pthread handles the number of
@@ -51,7 +51,6 @@ int unblock_socket(int fd);
 int make_server_socket(const char *port);
 void free_connection(connection_t *session);
 void init_connection(connection_t *session, int fd);
-static inline bool epoll_error(struct epoll_event e);
 void *epoll_loop(void *ptr);
 server_t *new_server(const size_t nthreads, const char *addr, const char *port);
 void server_wait(server_t *server);

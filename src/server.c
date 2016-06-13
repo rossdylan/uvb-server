@@ -22,8 +22,9 @@ static const char header_page[] = "--- Ultimate Victory Battle (v4.0.0) ---\n"
                                   "----------------------------------------\n\n";
 static uint64_t header_size = (sizeof(header_page)/sizeof(header_page[0])) - 1;
 
-static lmdb_counter_t *counter;
+static counter_t *counter;
 static const char *inc_response;
+static inline bool epoll_error(struct epoll_event e);
 
 /**
  * Use asprintf to generate a HTTP response.
@@ -128,6 +129,7 @@ static int on_message_complete(http_parser *hp) {
 
 #ifdef GPROF
     if(http_url_compare(&session->msg, "/quit") == 0) {
+        printf("Exit requested...\n");
         exit(0);
     }
 #endif
@@ -141,12 +143,12 @@ static int on_message_complete(http_parser *hp) {
         if(buffer_length(&session->msg.url) > 15) {
             session->msg.url.buffer[15] = '\0';
         }
-        lmdb_counter_inc(counter, key);
+        counter_inc(counter, key);
         send(session->fd, inc_response, strlen(inc_response), MSG_NOSIGNAL);
     }
     else {
         buffer_append(&rsp_buffer, header_page, header_size);
-        lmdb_counter_dump(counter, &rsp_buffer);
+        counter_dump(counter, &rsp_buffer);
         char *resp = make_http_response(200, "OK", "text/plain", rsp_buffer.buffer);
 
         send(session->fd, resp, strlen(resp), MSG_NOSIGNAL);
@@ -223,7 +225,7 @@ void *epoll_loop(void *ptr) {
         return NULL;
     }
 
-    event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+    event.events = EPOLLIN;
     if(epoll_ctl(data->epoll_fd, EPOLL_CTL_ADD, data->listen_fd, &event) == -1) {
         perror("epoll_create");
         return NULL;
@@ -262,79 +264,69 @@ void *epoll_loop(void *ptr) {
 
                 if((in_fd = accept(data->listen_fd, &in_addr, &in_len)) == -1) {
                     if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-                        goto epoll_loop_server_reenable;
+                        goto epoll_accept_failed;
                     }
                     else {
                         perror("accept");
-                        goto epoll_loop_server_reenable;
+                        goto epoll_accept_failed;
                     }
                 }
 
                 if(unblock_socket(in_fd) == -1) {
                     //TODO maybe do extra handling of this error case?
                     perror("unblock_socket");
-                    goto epoll_loop_server_reenable;
+                    goto epoll_accept_failed;
                 }
                 if((event.data.ptr = malloc(sizeof(connection_t))) == NULL) {
                     perror("malloc");
-                    goto epoll_loop_server_reenable;
+                    goto epoll_accept_failed;
                 }
 
                 connection_t *new_session = (connection_t *)event.data.ptr;
                 init_connection(new_session, in_fd);
-                event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+                event.events = EPOLLIN;
                 if(epoll_ctl(data->epoll_fd, EPOLL_CTL_ADD, in_fd, &event) != 0) {
                     perror("epoll_ctl");
                     free_connection(new_session);
-                    goto epoll_loop_server_reenable;
+                    goto epoll_accept_failed;
                 }
 
-epoll_loop_server_reenable:
-                events[i].events = EPOLLIN | EPOLLET | EPOLLONESHOT;
-                if(epoll_ctl(data->epoll_fd, EPOLL_CTL_MOD, session->fd, &events[i]) != 0) {
-                    perror("epoll_ctl");
-                    continue;
-                }
+epoll_accept_failed: ;
             }
             else {
                 bool done = false;
-                while(1) {
-                    char buf[512];
-                    ssize_t count = -1;
-                    if((count = read(session->fd, buf, sizeof(buf))) == -1) {
-                        if(errno != EAGAIN && errno != EWOULDBLOCK) {
-                            done = true;
-                        }
-                        break;
-                    } else if(count == 0) {
-                        // EOF
-                        done = true;
-                        break;
-                    }
 
-                    // Since we check if count is -1 and back out
-                    // before this point this cast should be safe
-                    size_t parsed = http_parser_execute(
-                        &session->parser, &parser_settings, buf, (size_t)count);
-
-                    if(parsed != (size_t)count) {
-                        // ERROR OH NO
+                char buf[4096];
+                ssize_t count = -1;
+                if((count = read(session->fd, buf, sizeof(buf))) == -1) {
+                    if(errno != EAGAIN && errno != EWOULDBLOCK) {
                         done = true;
-                        break;
                     }
+                    goto serviced;
+                } else if(count == 0) {
+                    // EOF
+                    done = true;
+                    goto serviced;
                 }
+
+                // Since we check if count is -1 and back out
+                // before this point this cast should be safe
+                size_t parsed = http_parser_execute(
+                    &session->parser, &parser_settings, buf, (size_t)count);
+
+                if(parsed != (size_t)count) {
+                    // ERROR OH NO
+                    done = true;
+                    // goto serviced;
+                }
+
+serviced:
+                printf("Serviced!\n");
                 if(done) {
                     free_connection(session);
                     events[i].data.ptr = NULL;
                 }
-                else {
-                    events[i].events = EPOLLIN | EPOLLET | EPOLLONESHOT;
-                    if(epoll_ctl(data->epoll_fd, EPOLL_CTL_MOD, session->fd, &events[i]) != 0) {
-                        perror("epoll_ctl");
-                    }
-                }
             }
-
         }
     }
 }
@@ -350,11 +342,11 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
     }
     server->nthreads = nthreads;
     server->port = port;
-    if((counter = lmdb_counter_init("./uvb.lmdb", nthreads)) == NULL) {
+    if((counter = counter_init("./uvb.lmdb", nthreads)) == NULL) {
         goto new_server_free;
     }
     timer_mgr_init(&server->timers);
-    register_timer(&server->timers, lmdb_counter_gen_stats, 10, (void *)counter);
+    register_timer(&server->timers, counter_gen_stats, STATS_SECS, (void *)counter);
 
     // Make our array of threads
     if((server->threads = calloc(nthreads, sizeof(pthread_t))) == NULL) {
@@ -391,9 +383,7 @@ new_server_free:
     free(server->threads);
     free(server);
     server = NULL;
-    if(counter != NULL) {
-        lmdb_counter_destroy(counter);
-    }
+    counter_destroy(counter);
 new_server_return:
     pthread_attr_destroy(&attr);
     return server;
