@@ -11,12 +11,23 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <lmdb.h>
 #include "server.h"
-#include "lmdb_counter.h"
+#include "counter.h"
 
-lmdb_counter_t *lmdb_counter_init(const char *path, uint64_t readers) {
-    lmdb_counter_t *lc = NULL;
-    if((lc = calloc(1, sizeof(lmdb_counter_t))) == NULL) {
+struct counter {
+    MDB_env *env;
+    MDB_dbi *dbi;
+};
+
+// who the fuck knows why this number is chosen
+// it was in an example.
+#define MDB_MAPSIZE 10485760
+#define MDB_CHECK(call, succ, ret) if((call) != succ) { perror(#call); return ret; }
+
+counter_t *counter_init(const char *path, uint64_t readers) {
+    counter_t *lc = NULL;
+    if((lc = calloc(1, sizeof(counter_t))) == NULL) {
         perror("calloc");
         return NULL;
     }
@@ -41,7 +52,7 @@ lmdb_counter_t *lmdb_counter_init(const char *path, uint64_t readers) {
 }
 
 
-void lmdb_counter_destroy(lmdb_counter_t *lc) {
+void counter_destroy(counter_t *lc) {
     mdb_dbi_close(lc->env, *lc->dbi);
     free(lc->dbi);
     mdb_env_close(lc->env);
@@ -62,7 +73,7 @@ static inline bool is_ascii(char c) {
  * any trickery by users. Then we retrieve the existing value, increment it,
  * and store it back in the db.
  */
-uint64_t lmdb_counter_inc(lmdb_counter_t *lc, const char *key) {
+uint64_t counter_inc(counter_t *lc, const char *key) {
     char clean_key[16]; // 15 characters + \0
     int clean_index = 0;
     for(int i=0; i<15; i++) {
@@ -99,7 +110,7 @@ uint64_t lmdb_counter_inc(lmdb_counter_t *lc, const char *key) {
 }
 
 
-uint64_t lmdb_counter_get(lmdb_counter_t *lc, const char *key) {
+uint64_t counter_get(counter_t *lc, const char *key) {
     MDB_dbi dbi;
     MDB_val mkey, data;
     MDB_txn *txn;
@@ -119,12 +130,12 @@ uint64_t lmdb_counter_get(lmdb_counter_t *lc, const char *key) {
 }
 
 
-void lmdb_counter_sync(lmdb_counter_t *lc) {
+void counter_sync(counter_t *lc) {
     mdb_env_sync(lc->env, 1);
 }
 
 
-void lmdb_counter_dump(lmdb_counter_t *lc, buffer_t *output) {
+void counter_dump(counter_t *lc, buffer_t *output) {
     MDB_val key, data, rps_key, rps_data;
     MDB_txn *txn = NULL;
     MDB_cursor *cursor = NULL;
@@ -154,8 +165,8 @@ void lmdb_counter_dump(lmdb_counter_t *lc, buffer_t *output) {
 }
 
 
-int lmdb_counter_gen_stats(void *tdata) {
-    lmdb_counter_t *lc = (lmdb_counter_t *)tdata;
+int counter_gen_stats(void *tdata) {
+    counter_t *lc = (counter_t *)tdata;
     MDB_val key, data;
     MDB_val stat_key, stat_data;
     MDB_txn *txn = NULL;
