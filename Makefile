@@ -1,7 +1,7 @@
 DESTDIR := /usr/local
-CFLAGS := -ggdb -I./include -I/usr/include -DGPROF -pthread -O0 -Wall	\
-          -Wextra -fPIC -pedantic
-LDFLAGS := -g -pthread -lhttp_parser
+CFLAGS := -ggdb -I./include -I/usr/include -DGPROF -pthread -O3 -Wall \
+          -Wextra -fPIC -pedantic -fgnu-tm
+LDFLAGS := -g -pthread -lhttp_parser -llmdb -fgnu-tm
 
 ifeq ($(CC),gcc)
 	CFLAGS += -std=gnu11
@@ -10,29 +10,21 @@ ifeq ($(CC),clang)
 	CFLAGS += -Weverything
 endif
 
-COUNTER ?= lmdb_counter
-ifeq ($(COUNTER),lmdb_counter)
-	LDFLAGS += -llmdb
-else ifeq ($(COUNTER),tm_counter)
-	CFLAGS += -fgnu-tm
-	LDFLAGS += -fgnu-tm
-endif
-
 OUT := out
 
-SOURCE := buffer.c http.c list.c pool.c server.c timers.c $(COUNTER).c
+SOURCE := buffer.c http.c list.c pool.c server.c timers.c
 OBJS := $(addprefix $(OUT)/,$(patsubst %.c,%.o,$(SOURCE)))
 
 EXECUTABLE := uvb-server
 
 .PHONY: all
-all: uvb-server
+all: uvb-server-lmdb
 
 $(OUT)/%.o: src/%.c Makefile
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-uvb-server: $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $(OBJS)
+uvb-server-%: $(OUT)/%_counter.o $(OBJS) 
+	$(CC) $(LDFLAGS) -o $@ $< $(OBJS)
 
 .PHONY: install
 install:
