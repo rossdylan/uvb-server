@@ -354,7 +354,7 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
         goto new_server_free;
     }
     timer_mgr_init(&server->timers);
-    register_timer(&server->timers, lmdb_counter_gen_stats, 10, (void *)counter);
+    register_timer(&server->timers, lmdb_counter_gen_stats, STATS_SECS, (void *)counter);
 
     // Make our array of threads
     if((server->threads = calloc(nthreads, sizeof(pthread_t))) == NULL) {

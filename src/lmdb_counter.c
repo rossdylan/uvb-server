@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "server.h"
 #include "lmdb_counter.h"
 
 lmdb_counter_t *lmdb_counter_init(const char *path, uint64_t readers) {
@@ -177,8 +178,8 @@ int lmdb_counter_gen_stats(void *tdata) {
         if(mdb_get(txn, *lc->dbi, &stat_key, &stat_data) == MDB_SUCCESS) {
             last_counter = *(uint64_t *)stat_data.mv_data;
         }
-        // runs every 10secs
-        reqs_per_sec = (*(uint64_t *)data.mv_data - last_counter) / 10;
+        // runs every STATS_SECS secs
+        reqs_per_sec = (*(uint64_t *)data.mv_data - last_counter) / STATS_SECS;
         stat_data.mv_size = sizeof(uint64_t);
         stat_data.mv_data = data.mv_data;
         mdb_put(txn, *lc->dbi, &stat_key, &data, 0);

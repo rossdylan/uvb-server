@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "timers.h"
 #include <stdio.h>
 #include <sys/epoll.h>
