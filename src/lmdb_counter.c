@@ -61,37 +61,19 @@ void counter_destroy(counter_t *lc) {
 
 
 /**
- * Helper function for filtering out non-alphanumeric characters.
- */
-static inline bool is_ascii(char c) {
-    return (c > 47 && c < 58) || (c > 64 && c < 91) || (c > 96 && c < 123);
-}
-
-
-/**
  * This function works in stages. First we clean up the given key to prevent
  * any trickery by users. Then we retrieve the existing value, increment it,
  * and store it back in the db.
  */
 uint64_t counter_inc(counter_t *lc, const char *key) {
-    char clean_key[16]; // 15 characters + \0
-    int clean_index = 0;
-    for(int i=0; i<15; i++) {
-        if(key[i] == '\0') {
-            clean_key[clean_index] = '\0';
-            break;
-        }
-        if(is_ascii(key[i])) {
-            clean_key[clean_index] = key[i];
-            clean_index++;
-        }
-    }
+    char clean_key[KEYSZ] = { 0 };
+    key_clean(clean_key, key);
     clean_key[15] = '\0';
 
     MDB_val mkey, data, update;
     MDB_txn *txn = NULL;
 
-    mkey.mv_size = (strlen(clean_key) + 1) * sizeof(char);
+    mkey.mv_size = (KEYSZ) * sizeof(char);
     mkey.mv_data = (void *)clean_key;
 
     // First we get our data from the db

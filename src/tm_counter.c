@@ -13,7 +13,6 @@
 #include "counter.h"
 #include "server.h"
 
-#define KEYSZ 16
 
 static const unsigned char zero_key[KEYSZ] = { 0 };
 
@@ -121,28 +120,8 @@ static inline uint64_t key_get(counter_t *tbl,
             return 0;
         }
     }
-}    
-
-/**
- * Helper function for filtering out non-alphanumeric characters.
- */
-static inline bool is_ascii(char c) {
-    return (c > 47 && c < 58) || (c > 64 && c < 91) || (c > 96 && c < 123);
 }
 
-static inline void key_clean(unsigned char *dest, const char *src) {
-    int clean_index = 0;
-    for(int i=0; i < KEYSZ-1; i++) {
-        if(src[i] == '\0') {
-             break;
-        }
-        if(is_ascii(src[i])) {
-            dest[clean_index] = src[i];
-            clean_index++;
-        }
-    }
-}
-    
 uint64_t counter_inc(counter_t *tbl, const char *key) {
     unsigned char clean_key[KEYSZ] = { 0 }; // 15 characters + \0
     key_clean(clean_key, key);
@@ -166,7 +145,7 @@ void counter_dump(counter_t *tbl, buffer_t *output) {
         for (size_t i = 0; i < tbl->size; ++i) {
             if (memcmp(tbl->slots[i].key, zero_key, KEYSZ) != 0) {
                 char *str = NULL;
-                
+
                 uint64_t prev = tbl->prev != NULL ? key_get(tbl->prev, tbl->slots[i].key) : 0;
                 uint64_t prev2 = tbl->prev2 != NULL ? key_get(tbl->prev2, tbl->slots[i].key) : 0;
                 uint64_t rate = (prev - prev2) / STATS_SECS;
