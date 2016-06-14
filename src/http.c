@@ -76,6 +76,7 @@ int http_header_compare(http_msg_t *msg, const char *name, const char *value) {
 }
 
 int http_url_compare(http_msg_t *msg, const char *value) {
+    if (strlen(value) != buffer_length(&msg->url)) return 1;
     int foo = strncmp(msg->url.buffer, value, buffer_length(&msg->url));
     return foo;
 }

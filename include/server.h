@@ -11,7 +11,7 @@
 #include <pthread.h>
 #include <sys/epoll.h>
 #include "buffer.h"
-#include "lmdb_counter.h"
+#include "counter.h"
 #include "http.h"
 #include "timers.h"
 

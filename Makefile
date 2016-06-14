@@ -1,42 +1,41 @@
 DESTDIR := /usr/local
-CPPFLAGS := -I./include -I/usr/include
-CFLAGS := -Wall -Wextra -fPIC -pedantic -pthread -lhttp_parser -llmdb
-
-DEBUGFLAGS := -ggdb3
-ifeq ($(CC),clang)
-    DEBUGFLAGS := -ggdb
-endif
+CFLAGS := -ggdb -I./include -I/usr/include -DGPROF -pthread -O3 -Wall \
+          -Wextra -fPIC -pedantic -fgnu-tm
+LDFLAGS := -g -pthread -lhttp_parser -llmdb -fgnu-tm
 
 ifeq ($(CC),gcc)
-	CFLAGS += -std=c11
+	CFLAGS += -std=gnu11
 endif
 ifeq ($(CC),clang)
 	CFLAGS += -Weverything
 endif
 
-SOURCE := $(wildcard src/*.c)
+OUT := out
+
+SOURCE := buffer.c http.c list.c pool.c server.c timers.c
+OBJS := $(addprefix $(OUT)/,$(patsubst %.c,%.o,$(SOURCE)))
 
 EXECUTABLE := uvb-server
 
-all:
-	$(CC) $(CPPFLAGS) $(CFLAGS) -o $(EXECUTABLE) $(SOURCE)
+.PHONY: all
+all: uvb-server-lmdb
 
-debug:
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEBUGFLAGS) -o $(EXECUTABLE) $(SOURCE)
+$(OUT)/%.o: src/%.c Makefile
+	$(CC) -c $(CFLAGS) -o $@ $<
 
-profile:
-	$(CC) $(CPPFLAGS) $(CFLAGS) -DGPROF $(DEBUGFLAGS) -pg -o $(EXECUTABLE) $(SOURCE)
+uvb-server-%: $(OUT)/%_counter.o $(OBJS) 
+	$(CC) $(LDFLAGS) -o $@ $< $(OBJS)
 
-release:
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEBUGFLAGS) -O2 -o $(EXECUTABLE) $(SOURCE)
-
-
+.PHONY: install
 install:
-	install -D $(EXECUTABLE) $(DESTDIR)/bin/$(EXECUTABLE)
+	install -D uvb-server $(DESTDIR)/bin/$(EXECUTABLE)
 
+.PHONY: clean
 clean:
-	$(RM) $(EXECUTABLE) counters.db names.db
+	$(RM) -rf $(OUT) $(EXECUTABLE) counters.db names.db
+	mkdir $(OUT)
 
+.PHONY: uninstall
 uninstall:
 	$(RM) $(DESTDIR)/bin/$(EXECUTABLE)
 

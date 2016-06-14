@@ -22,7 +22,7 @@ static const char header_page[] = "--- Ultimate Victory Battle (v4.0.0) ---\n"
                                   "----------------------------------------\n\n";
 static uint64_t header_size = (sizeof(header_page)/sizeof(header_page[0])) - 1;
 
-static lmdb_counter_t *counter;
+static counter_t *counter;
 static const char *inc_response;
 static inline bool epoll_error(struct epoll_event e);
 
@@ -129,6 +129,7 @@ static int on_message_complete(http_parser *hp) {
 
 #ifdef GPROF
     if(http_url_compare(&session->msg, "/quit") == 0) {
+        printf("Exit requested...\n");
         exit(0);
     }
 #endif
@@ -142,12 +143,12 @@ static int on_message_complete(http_parser *hp) {
         if(buffer_length(&session->msg.url) > 15) {
             session->msg.url.buffer[15] = '\0';
         }
-        lmdb_counter_inc(counter, key);
+        counter_inc(counter, key);
         send(session->fd, inc_response, strlen(inc_response), MSG_NOSIGNAL);
     }
     else {
         buffer_append(&rsp_buffer, header_page, header_size);
-        lmdb_counter_dump(counter, &rsp_buffer);
+        counter_dump(counter, &rsp_buffer);
         char *resp = make_http_response(200, "OK", "text/plain", rsp_buffer.buffer);
 
         send(session->fd, resp, strlen(resp), MSG_NOSIGNAL);
@@ -339,11 +340,11 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
     }
     server->nthreads = nthreads;
     server->port = port;
-    if((counter = lmdb_counter_init("./uvb.lmdb", nthreads)) == NULL) {
+    if((counter = counter_init("./uvb.lmdb", nthreads)) == NULL) {
         goto new_server_free;
     }
     timer_mgr_init(&server->timers);
-    register_timer(&server->timers, lmdb_counter_gen_stats, STATS_SECS, (void *)counter);
+    register_timer(&server->timers, counter_gen_stats, STATS_SECS, (void *)counter);
 
     // Make our array of threads
     if((server->threads = calloc(nthreads, sizeof(pthread_t))) == NULL) {
@@ -381,7 +382,7 @@ new_server_free:
     free(server);
     server = NULL;
     if(counter != NULL) {
-        lmdb_counter_destroy(counter);
+        counter_destroy(counter);
     }
 new_server_return:
     pthread_attr_destroy(&attr);
