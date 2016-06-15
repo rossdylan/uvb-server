@@ -46,7 +46,7 @@ typedef struct {
 } thread_data_t;
 
 
-char *make_http_response(int status_code, const char *status, const char *content_type, const char* response);
+int make_http_response(char **resp_ptr, int status_code, const char *status, const char *content_type, const char* response);
 int unblock_socket(int fd);
 int make_server_socket(const char *port);
 void free_connection(connection_t *session);
