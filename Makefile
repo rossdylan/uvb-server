@@ -15,13 +15,10 @@ OUT := out
 SOURCE := buffer.c http.c list.c pool.c server.c timers.c
 OBJS := $(addprefix $(OUT)/,$(patsubst %.c,%.o,$(SOURCE)))
 
-.PHONY: lmdb
+.PHONY: lmdb tm atom all
 lmdb: uvb-server-lmdb
-
-.PHONY: tm
 tm: uvb-server-tm
-
-.PHONY: all
+atom: uvb-server-atom
 all: lmdb tm
 
 $(OUT)/%.o: src/%.c Makefile
@@ -35,6 +32,9 @@ uvb-server-lmdb: out/lmdb_counter.o $(OBJS)
 
 uvb-server-tm: out/tm_counter.o $(OBJS) 
 	$(CC) $(LDFLAGS) -fgnu-tm -o $@ $(OBJS) out/tm_counter.o
+
+uvb-server-atom: out/atomic_counter.o $(OBJS) 
+	$(CC) $(LDFLAGS) -latomic -o $@ $(OBJS) out/atomic_counter.o
 
 .PHONY: install
 install:
