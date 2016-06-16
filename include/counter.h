@@ -18,6 +18,11 @@
 typedef struct counter counter_t;
 
 /**
+ * The name of this backend
+ */
+extern const char *counter_backend_name;
+
+/**
  * Allocate and initialize a counter_t struct with the given path and
  * number of readers.
  */

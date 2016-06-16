@@ -25,6 +25,8 @@ struct counter {
 #define MDB_MAPSIZE 10485760
 #define MDB_CHECK(call, succ, ret) if((call) != succ) { perror(#call); return ret; }
 
+const char *counter_backend_name = "lmdb";
+
 counter_t *counter_init(const char *path, uint64_t readers) {
     counter_t *lc = NULL;
     if((lc = calloc(1, sizeof(counter_t))) == NULL) {

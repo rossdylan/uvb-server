@@ -13,14 +13,16 @@
 #include <sched.h>
 
 
-static const char header_page[] = "--- Ultimate Victory Battle (v4.0.0) ---\n"
-                                  " Rules: \n"
-                                  "  - Increment your counter higher/faster than everyone else\n"
-                                  "  - GET /<name> Increments your counter\n"
-                                  "  - GET / Displays this page\n"
-                                  " Source: http://github.com/rossdylan/uvb-server\n"
-                                  "----------------------------------------\n\n";
-static uint64_t header_size = (sizeof(header_page)/sizeof(header_page[0])) - 1;
+static const char header_page1[] = "--- Ultimate Victory Battle (v4.0.0) ---\n"
+                                   " Rules: \n"
+                                   "  - Increment your counter higher/faster than everyone else\n"
+                                   "  - GET /<name> Increments your counter\n"
+                                   "  - GET / Displays this page\n"
+                                   " Source: http://github.com/rossdylan/uvb-server\n"
+                                   " Backend: ";
+static const char header_page2[] = "\n----------------------------------------\n\n";
+static uint64_t header_size1 = (sizeof(header_page1)/sizeof(header_page1[0])) - 1;
+static uint64_t header_size2 = (sizeof(header_page2)/sizeof(header_page2[0])) - 1;
 
 static counter_t *counter;
 static char *inc_response;
@@ -146,7 +148,9 @@ static int on_message_complete(http_parser *hp) {
         send(session->fd, inc_response, inc_response_sz, MSG_NOSIGNAL);
     }
     else {
-        buffer_append(&rsp_buffer, header_page, header_size);
+        buffer_append(&rsp_buffer, header_page1, header_size1);
+        buffer_append(&rsp_buffer, counter_backend_name, strlen(counter_backend_name));
+        buffer_append(&rsp_buffer, header_page2, header_size2);
         counter_dump(counter, &rsp_buffer);
         char *resp = NULL;
         int len = make_http_response(&resp, 200, "OK", "text/plain", rsp_buffer.buffer);

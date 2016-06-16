@@ -43,6 +43,7 @@ struct counter {
 };
 
 static const int size0 = 128;
+const char *counter_backend_name = "atomic";
 
 counter_t *counter_init(const char *path, uint64_t threads) {
     (void)path; (void)threads;
