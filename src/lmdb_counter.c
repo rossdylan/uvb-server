@@ -100,21 +100,24 @@ uint64_t counter_inc(counter_t *lc, const char *key) {
 
 
 uint64_t counter_get(counter_t *lc, const char *key) {
-    MDB_dbi dbi;
+    char clean_key[KEYSZ] = { 0 };
+    key_clean(clean_key, key);
+    clean_key[15] = '\0';
+    
     MDB_val mkey, data;
     MDB_txn *txn;
     mdb_txn_begin(lc->env, NULL, 0, &txn);
-    mdb_dbi_open(txn, NULL, 0, &dbi);
 
-    mkey.mv_size = strlen(key) * sizeof(char);
-    mkey.mv_data = (void *)key;
+    mkey.mv_size = KEYSZ * sizeof(char);
+    mkey.mv_data = (void *)clean_key;
 
     // First we get our data from the db
     uint64_t stored_counter = 0;
-    if(mdb_get(txn, dbi, &mkey, &data) == MDB_SUCCESS) {
+    if(mdb_get(txn, *lc->dbi, &mkey, &data) == MDB_SUCCESS) {
         stored_counter = *(uint64_t *)data.mv_data;
     }
-    mdb_dbi_close(lc->env, dbi);
+
+    MDB_CHECK(mdb_txn_commit(txn), MDB_SUCCESS, 0);
     return stored_counter;
 }
 
