@@ -7,6 +7,7 @@
  */
 #pragma once
 
+#include <stdbool.h>
 #include "buffer.h"
 
 #define KEYSZ 16
