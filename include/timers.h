@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include "list.h"
 #include "stdint.h"
+#include "uvbloop.h"
 
 
 typedef int (*timer_func_t)(void *data);
@@ -18,10 +19,10 @@ typedef int (*timer_func_t)(void *data);
  */
 typedef struct {
     timer_func_t func;
-    int tfd;
+    int id;
     uint64_t secs;
     void *data;
-    struct list_node list;
+    struct rd_list_node list;
 } timer_entry_t;
 
 
@@ -31,10 +32,10 @@ typedef struct {
  *
  */
 typedef struct {
-    struct list_head funcs;
+    struct rd_list_head funcs;
     pthread_mutex_t mutex;
     pthread_t thread;
-    int epoll_fd;
+    uvbloop_t *loop;
 } timer_mgr_t;
 
 

@@ -3,8 +3,8 @@
 /**
  * Get a list node by its index.
  */
-struct list_node *list_get(struct list_head *head, uint64_t index) {
-    struct list_node *current = head->head;
+struct rd_list_node *rd_list_get(struct rd_list_head *head, uint64_t index) {
+    struct rd_list_node *current = head->head;
 
     uint64_t cindex = 0;
     while(1) {
@@ -17,8 +17,8 @@ struct list_node *list_get(struct list_head *head, uint64_t index) {
     return current;
 }
 
-struct list_node *list_get_by_func(struct list_head *head, list_filter_func func, void *cmpdata) {
-    struct list_node *current = head->head;
+struct rd_list_node *rd_list_get_by_func(struct rd_list_head *head, rd_list_filter_func func, void *cmpdata) {
+    struct rd_list_node *current = head->head;
     uint64_t cindex = 0;
     while(1) {
         if(current == NULL || func(current, cmpdata) == 1) {
@@ -34,7 +34,7 @@ struct list_node *list_get_by_func(struct list_head *head, list_filter_func func
 /**
  * Append a new node to the given list
  */
-void list_append(struct list_head *head, struct list_node *next) {
+void rd_list_append(struct rd_list_head *head, struct rd_list_node *next) {
     // Empty list case
     if(head->head == NULL) {
         head->head = next;
@@ -53,15 +53,15 @@ void list_append(struct list_head *head, struct list_node *next) {
 /**
  * Remove the node at the given index and return it
  */
-struct list_node *list_remove(struct list_head *head, uint64_t index) {
-	struct list_node *node = list_get(head, index);
-	node->prev->next = NULL;
-	return node;
+struct rd_list_node *list_remove(struct rd_list_head *head, uint64_t index) {
+    struct rd_list_node *node = rd_list_get(head, index);
+    node->prev->next = NULL;
+    return node;
 }
 
 
-struct list_node *list_remove_by_func(struct list_head *head, list_filter_func func, void *cmpdata) {
-	struct list_node *node = list_get_by_func(head, func, cmpdata);
-	node->prev->next = NULL;
-	return node;
+struct rd_list_node *rd_list_remove_by_func(struct rd_list_head *head, rd_list_filter_func func, void *cmpdata) {
+    struct rd_list_node *node = rd_list_get_by_func(head, func, cmpdata);
+    node->prev->next = NULL;
+    return node;
 }

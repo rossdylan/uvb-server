@@ -1,18 +1,19 @@
 DESTDIR := /usr/local
-CFLAGS := -ggdb -I./include -I/usr/include -DGPROF -pthread -O3 -Wall \
-          -Wextra -fPIC -pedantic
-LDFLAGS := -g -pthread -lhttp_parser
+CFLAGS := -ggdb -I./include -I/usr/include -I/usr/local/include -DGPROF -pthread -O3 -Wall \
+          -Wextra -fPIC -pedantic -std=gnu11
+LDFLAGS := -g -L/usr/local/lib -pthread -lhttp_parser
 
-ifeq ($(CC),gcc)
-	CFLAGS += -std=gnu11
-endif
-ifeq ($(CC),clang)
-	CFLAGS += -Weverything
+UVBLOOP_BACKEND ?= epoll
+ifeq ($(UVBLOOP_BACKEND),epoll)
+    CFLAGS += -DEPOLL_BACKEND
+    SOURCE := epoll_uvbloop.c
+else
+    CFLAGS += -DKQUEUE_BACKEND
+    SOURCE := kqueue_uvbloop.c
 endif
 
 OUT := out
-
-SOURCE := buffer.c http.c list.c pool.c server.c timers.c
+SOURCE += buffer.c http.c list.c pool.c server.c timers.c
 OBJS := $(addprefix $(OUT)/,$(patsubst %.c,%.o,$(SOURCE)))
 
 .PHONY: lmdb
