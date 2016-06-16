@@ -23,17 +23,16 @@ static const char header_page[] = "--- Ultimate Victory Battle (v4.0.0) ---\n"
 static uint64_t header_size = (sizeof(header_page)/sizeof(header_page[0])) - 1;
 
 static counter_t *counter;
-static const char *inc_response;
+static char *inc_response;
+static uint64_t inc_response_sz;
 static inline bool epoll_error(struct epoll_event e);
 
 /**
  * Use asprintf to generate a HTTP response.
  */
-char *make_http_response(int status_code, const char *status, const char *content_type, const char* response) {
-    char *full_response;
-    asprintf(&full_response, "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %lu\r\n\r\n%s",
+int make_http_response(char **resp_ptr, int status_code, const char *status, const char *content_type, const char* response) {
+    return asprintf(resp_ptr, "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %lu\r\n\r\n%s",
             status_code, status, content_type, strlen(response), response);
-    return full_response;
 }
 
 
@@ -144,14 +143,15 @@ static int on_message_complete(http_parser *hp) {
             session->msg.url.buffer[15] = '\0';
         }
         counter_inc(counter, key);
-        send(session->fd, inc_response, strlen(inc_response), MSG_NOSIGNAL);
+        send(session->fd, inc_response, inc_response_sz, MSG_NOSIGNAL);
     }
     else {
         buffer_append(&rsp_buffer, header_page, header_size);
         counter_dump(counter, &rsp_buffer);
-        char *resp = make_http_response(200, "OK", "text/plain", rsp_buffer.buffer);
+        char *resp = NULL;
+        int len = make_http_response(&resp, 200, "OK", "text/plain", rsp_buffer.buffer);
 
-        send(session->fd, resp, strlen(resp), MSG_NOSIGNAL);
+        send(session->fd, resp, len, MSG_NOSIGNAL);
 
         free(resp);
         buffer_fast_clear(&rsp_buffer);
@@ -332,7 +332,7 @@ serviced:
 server_t *new_server(const size_t nthreads, const char *addr, const char *port) {
     (void)addr;
     // create the standard response for increments
-    inc_response = make_http_response(200, "OK", "text/plain", "YOLO");
+    inc_response_sz = make_http_response(&inc_response, 200, "OK", "text/plain", "YOLO");
     server_t *server = NULL;
     if((server = malloc(sizeof(server_t))) == NULL) {
         perror("malloc");

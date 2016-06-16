@@ -9,6 +9,8 @@
 
 #include "buffer.h"
 
+#define KEYSZ 16
+
 /**
  * Structure defining the global values required for the LMDB functions.
  */
@@ -56,3 +58,23 @@ void counter_dump(counter_t *lc, buffer_t *buffer);
  * Run via the timer system every 10 seconds to generate req/s statistics
  */
 int counter_gen_stats(void *data);
+
+/**
+ * Helper functions for filtering out non-alphanumeric characters.
+ */
+static inline bool is_ascii(char c) {
+    return (c > 47 && c < 58) || (c > 64 && c < 91) || (c > 96 && c < 123);
+}
+
+static inline void key_clean(char *dest, const char *src) {
+    int clean_index = 0;
+    for(int i=0; i < KEYSZ-1; i++) {
+        if(src[i] == '\0') {
+             break;
+        }
+        if(is_ascii(src[i])) {
+            dest[clean_index] = src[i];
+            clean_index++;
+        }
+    }
+}
