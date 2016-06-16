@@ -107,7 +107,7 @@ static uint64_t key_incr(counter_t *tbl,
         } else if (key_eq(key1, zero_key)) {
             hashkey_t key2 = zero_key;
             atomic_compare_exchange_relaxed(&tbl->slots[i].key, &key2, key);
-            if (key_eq(key2, key) || key_eq(key2, key_zero)) {
+            if (key_eq(key2, key) || key_eq(key2, zero_key)) {
                 size_t used = atomic_fetch_add_relaxed(&tbl->used, 1);
                 if (used + 1 > (size * 8) / 10) {
                     errx(1, "Hash table filled up");
@@ -129,16 +129,9 @@ static inline uint64_t key_get(counter_t *tbl, const hashkey_t key) {
             return 0;
         }
     }
-}    
-
-/**
- * Helper function for filtering out non-alphanumeric characters.
- */
-static inline bool is_ascii(char c) {
-    return (c > 47 && c < 58) || (c > 64 && c < 91) || (c > 96 && c < 123);
 }
 
-static inline hashkey_t key_clean(const char *src) {
+static inline hashkey_t key_clean1(const char *src) {
     hashkey_t ret = { .chars = { 0 } };
     int clean_index = 0;
     for(int i=0; i < KEYSZ-1; i++) {
@@ -154,13 +147,13 @@ static inline hashkey_t key_clean(const char *src) {
 }
 
 uint64_t counter_inc(counter_t *tbl, const char *key) {
-    hashkey_t clean_key = key_clean(key);
+    hashkey_t clean_key = key_clean1(key);
 
     return key_incr(tbl, clean_key, 1);
 }
 
 uint64_t counter_get(counter_t *tbl, const char *key) {
-    hashkey_t clean_key = key_clean(key);
+    hashkey_t clean_key = key_clean1(key);
 
     return key_get(tbl, clean_key);
 }
