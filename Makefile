@@ -36,6 +36,15 @@ uvb-server-tm: out/tm_counter.o $(OBJS)
 uvb-server-atom: out/atomic_counter.o $(OBJS) 
 	$(CC) $(LDFLAGS) -latomic -o $@ $(OBJS) out/atomic_counter.o
 
+counter-test-lmdb: out/counter_test.o out/buffer.o out/lmdb_counter.o
+	$(CC) $(LDFLAGS) -llmdb -o $@ out/counter_test.o out/buffer.o out/lmdb_counter.o
+
+counter-test-tm: out/counter_test.o out/buffer.o out/tm_counter.o
+	$(CC) $(LDFLAGS) -fgnu-tm -o $@ out/counter_test.o out/buffer.o out/tm_counter.o
+
+counter-test-atom: out/counter_test.o out/buffer.o out/atomic_counter.o
+	$(CC) $(LDFLAGS) -latomic -o $@ out/counter_test.o out/buffer.o out/atomic_counter.o
+
 .PHONY: install
 install:
 	install -D uvb-server $(DESTDIR)/bin/$(EXECUTABLE)
