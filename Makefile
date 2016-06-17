@@ -28,7 +28,7 @@ $(OUT)/tm_counter.o: src/tm_counter.c Makefile
 	$(CC) -c $(CFLAGS) -fgnu-tm -o $@ $<
 
 uvb-server-lmdb: out/lmdb_counter.o $(OBJS) 
-	$(CC) $(LDFLAGS) -llmdb -o $@ $(OBJS) out/lmdb_counter.o
+	$(CC) -o $@ $(OBJS) out/lmdb_counter.o $(LDFLAGS) -llmdb
 
 uvb-server-tm: out/tm_counter.o $(OBJS) 
 	$(CC) $(LDFLAGS) -fgnu-tm -o $@ $(OBJS) out/tm_counter.o
@@ -37,7 +37,7 @@ uvb-server-atom: out/atomic_counter.o $(OBJS)
 	$(CC) $(LDFLAGS) -latomic -o $@ $(OBJS) out/atomic_counter.o
 
 counter-test-lmdb: out/counter_test.o out/buffer.o out/lmdb_counter.o
-	$(CC) $(LDFLAGS) -llmdb -o $@ out/counter_test.o out/buffer.o out/lmdb_counter.o
+	$(CC) -o $@ out/counter_test.o out/buffer.o out/lmdb_counter.o $(LDFLAGS) -llmdb
 
 counter-test-tm: out/counter_test.o out/buffer.o out/tm_counter.o
 	$(CC) $(LDFLAGS) -fgnu-tm -o $@ out/counter_test.o out/buffer.o out/tm_counter.o
