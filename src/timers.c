@@ -23,7 +23,7 @@ void *timer_loop(void *ptr) {
         waiting = uvbloop_wait(p->loop, events, MAXEVENTS);
         if(waiting > 0) {
             for(int i=0; i<waiting; i++) {
-                entry = (timer_entry_t *)uvbloop_event_data(events);
+                entry = (timer_entry_t *)uvbloop_event_data(&events[i]);
                 uvbloop_reset_timer(p->loop, entry->id);
                 if(entry->func(entry->data) < 0) {
                     perror("timer()");
