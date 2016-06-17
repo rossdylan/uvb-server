@@ -126,7 +126,7 @@ int uvbloop_wait(uvbloop_t *loop, uvbloop_event_t *events, int max_events) {
 
 
 bool uvbloop_event_error(uvbloop_event_t *e) {
-    return e.events & EPOLLERR || e.events & EPOLLHUP || !(e.events & EPOLLIN);
+    return e->events & EPOLLERR || e->events & EPOLLHUP || !(e->events & EPOLLIN);
 }
 
 
