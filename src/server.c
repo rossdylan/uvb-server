@@ -351,7 +351,7 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
         goto new_server_free;
     }
     timer_mgr_init(&server->timers);
-    register_timer(&server->timers, counter_gen_stats, STATS_SECS, (void *)counter);
+    register_timer(&server->timers, counter_gen_stats, STATS_SECS * 1000, (void *)counter);
 
     // Make our array of threads
     if((server->threads = calloc(nthreads, sizeof(pthread_t))) == NULL) {
@@ -360,7 +360,7 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
         goto new_server_free;
     }
 
-#ifdef __LINUX__
+#ifdef __linux__
     cpu_set_t set;
     size_t set_sz = sizeof(cpu_set_t);
 #endif

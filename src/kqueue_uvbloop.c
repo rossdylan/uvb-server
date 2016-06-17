@@ -63,16 +63,11 @@ int uvbloop_register_fd(uvbloop_t *loop, int fd, void *data, uvbloop_nset_t nset
  * we explicitly call kevent after creating the timer to ensure it starts
  * immediately.
  */
-int uvbloop_register_timer(uvbloop_t *loop, uint64_t secs, void *data) {
+int uvbloop_register_timer(uvbloop_t *loop, uint64_t ms, void *data) {
     short filter = EVFILT_TIMER;
-#ifdef __APPLE__
-    short fflags = NOTE_SECONDS;
-#else
-    short fflags = 0;
-    secs = secs * 1000; // convert seconds to milliseconds
-#endif
     short flags = EV_ADD;
-    EV_SET(&loop->pending[loop->cl_index], (uintptr_t)data, filter, flags, fflags, secs, data);
+    short fflags = 0;
+    EV_SET(&loop->pending[loop->cl_index], (uintptr_t)data, filter, flags, fflags, ms, data);
     loop->cl_index++;
     const struct kevent *pending = loop->pending;
     int res = kevent(loop->kq_fd, pending, loop->cl_index, NULL, 0, NULL);

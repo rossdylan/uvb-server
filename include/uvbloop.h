@@ -45,7 +45,7 @@ int uvbloop_unregister_fd(uvbloop_t *loop, int fd);
 /**
  * Register a timer with the given uvbloop_t.
  */
-int uvbloop_register_timer(uvbloop_t *loop, uint64_t secs, void *data);
+int uvbloop_register_timer(uvbloop_t *loop, uint64_t ms, void *data);
 
 /**
  * Reset a timer after uvbloop_wait returns it's event

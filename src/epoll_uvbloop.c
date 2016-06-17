@@ -53,7 +53,9 @@ int uvbloop_register_fd(uvbloop_t *loop, int fd, void *data, uvbloop_nset_t nset
  * Register a timer with the given uvbloop_t.
  * Editors Note: Fuck Linux
  */
-int uvbloop_register_timer(uvbloop_t *loop, uint64_t secs, void *data) {
+int uvbloop_register_timer(uvbloop_t *loop, uint64_t ms, void *data) {
+    uint64_t ns = ms * 1000000;
+    uint64_t sec = 0;
     struct itimerspec new_value;
     struct timespec now;
     int ret = 0;
@@ -62,18 +64,21 @@ int uvbloop_register_timer(uvbloop_t *loop, uint64_t secs, void *data) {
         perror("clock_gettime");
         return -1;
     }
-
-    new_value.it_value.tv_sec = now.tv_sec + secs;
-    new_value.it_value.tv_nsec = now.tv_nsec;
-    new_value.it_interval.tv_sec = secs;
-    new_value.it_interval.tv_nsec = 0;
+    while(ns > 999999999) {
+        sec += 1;
+        ns -= 1000000000;
+    }
+    new_value.it_value.tv_sec = sec;
+    new_value.it_value.tv_nsec = ns;
+    new_value.it_interval.tv_sec = sec;
+    new_value.it_interval.tv_nsec = ns;
     int fd = -1;
-    if((fd = timerfd_create(CLOCK_REALTIME, 0)) == -1) {
+    if((fd = timerfd_create(CLOCK_MONOTONIC, 0)) == -1) {
         perror("timerfd_create");
         return -1;
     }
 
-    if(timerfd_settime(fd, TFD_TIMER_ABSTIME, &new_value, NULL) == -1) {
+    if(timerfd_settime(fd, 0, &new_value, NULL) == -1) {
         perror("timerfd_settime");
         return -1;
     }
