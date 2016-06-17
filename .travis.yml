@@ -12,9 +12,9 @@ compiler:
 addons:
  apt:
   packages:
-   - liblmdb
+   - liblmdb0
    - liblmdb-dev
-   - libhttp-parser
+   - libhttp-parser2.1
    - libhttp-parser-dev
 
 script:
