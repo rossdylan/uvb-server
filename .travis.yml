@@ -16,3 +16,4 @@ addons:
 
 script:
  - make
+ - make counter-test-lmdb
