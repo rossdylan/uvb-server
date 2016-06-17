@@ -9,10 +9,10 @@ compiler:
 addons:
  apt:
   packages:
-   - lmdb
-   - lmdb-dev
-   - http-parser
-   - http-parser-dev
+   - liblmdb
+   - liblmdb-dev
+   - libhttp-parser
+   - libhttp-parser-dev
 
 script:
  - make
