@@ -120,19 +120,18 @@ int uvbloop_unregister_fd(uvbloop_t *loop, int fd) {
 }
 
 
-int uvbloop_wait(uvbloop_t *loop, uvbloop_event_t *events, uint64_t max_events) {
+int uvbloop_wait(uvbloop_t *loop, uvbloop_event_t *events, int max_events) {
     return epoll_wait(loop->epoll_fd, (struct epoll_event *)events, max_events, -1);
 }
 
 
-bool uvbloop_event_error(uvbloop_event_t *event) {
-    struct epoll_event e = *(struct epoll_event *)event;
+bool uvbloop_event_error(uvbloop_event_t *e) {
     return e.events & EPOLLERR || e.events & EPOLLHUP || !(e.events & EPOLLIN);
 }
 
 
 void *uvbloop_event_data(uvbloop_event_t *event) {
-    return ((struct epoll_event *)event)->data.ptr;
+    return event->data.ptr;
 }
 
 

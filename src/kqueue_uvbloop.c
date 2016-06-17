@@ -127,7 +127,7 @@ int uvbloop_unregister_fd(uvbloop_t *loop, int fd) {
 }
 
 
-int uvbloop_wait(uvbloop_t *loop, uvbloop_event_t *events, uint64_t max_events) {
+int uvbloop_wait(uvbloop_t *loop, uvbloop_event_t *events, int max_events) {
     const struct kevent *pending = loop->pending;
     int res = kevent(loop->kq_fd, pending, loop->cl_index,
             (struct kevent *)events, max_events, NULL);
@@ -137,12 +137,12 @@ int uvbloop_wait(uvbloop_t *loop, uvbloop_event_t *events, uint64_t max_events) 
 
 
 bool uvbloop_event_error(uvbloop_event_t *event) {
-    return ((struct kevent *)event)->flags & EV_ERROR;
+    return event->flags & EV_ERROR;
 }
 
 
 void *uvbloop_event_data(uvbloop_event_t *event) {
-    return ((struct kevent *)event)->udata;
+    return event->udata;
 }
 
 

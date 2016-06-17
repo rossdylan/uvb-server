@@ -60,7 +60,7 @@ int uvbloop_unregister_timer(uvbloop_t *loop, int id);
 /**
  * Wait for events from the given uvbloop_t
  */
-int uvbloop_wait(uvbloop_t *loop, uvbloop_event_t *events, uint64_t max_events);
+int uvbloop_wait(uvbloop_t *loop, uvbloop_event_t *events, int max_events);
 
 /**
  * Check if an event has errors
