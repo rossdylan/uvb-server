@@ -18,5 +18,5 @@ addons:
    - libhttp-parser-dev
 
 script:
- - make
- - make counter-test-lmdb
+ - make clean && make
+ - make clean && make counter-test-lmdb
