@@ -1,6 +1,5 @@
 #define _GNU_SOURCE
 
-#include "server.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -9,9 +8,12 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <errno.h>
+#include <signal.h>
+#include "server.h"
 #include "uvbloop.h"
 
-#ifdef __LINUX__
+
+#ifdef __linux__
 #include <sched.h>
 #endif
 
@@ -134,12 +136,6 @@ static int on_message_complete(http_parser *hp) {
     }
 #endif
 
-#if defined(MSG_NOSIGNAL)
-    int send_flags = MSG_NOSIGNAL;
-#else
-    int send_flags = 0;
-#endif
-
     if(http_url_compare(&session->msg, "/") != 0) {
         // OH GOD DON'T LOOK I'M A HIDEOUS HACK
         // We peak into the buffer and take away the first
@@ -151,7 +147,7 @@ static int on_message_complete(http_parser *hp) {
             session->msg.url.buffer[15] = '\0';
         }
         counter_inc(counter, key);
-        send(session->fd, inc_response, inc_response_sz, send_flags);
+        write(session->fd, inc_response, inc_response_sz);
     }
     else {
         buffer_append(&rsp_buffer, header_page, header_size);
@@ -159,7 +155,7 @@ static int on_message_complete(http_parser *hp) {
         char *resp = NULL;
         int len = make_http_response(&resp, 200, "OK", "text/plain", rsp_buffer.buffer);
 
-        send(session->fd, resp, len, send_flags);
+        write(session->fd, resp, len);
 
         free(resp);
         buffer_fast_clear(&rsp_buffer);
@@ -193,19 +189,18 @@ static void configure_parser(http_parser_settings *settings) {
  */
 void *epoll_loop(void *ptr) {
     thread_data_t *data = ptr;
-
-    int listen_fd =-1;
-
     uvbloop_t *loop = NULL;
+    uvbloop_event_t *events;
+    http_parser_settings parser_settings;
+    int waiting;
+    connection_t *session = NULL;
+    connection_t *server_session = NULL;
+
     if((loop = uvbloop_init(NULL)) == NULL) {
         perror("uvbloop_init");
         return NULL;
     }
-    uvbloop_event_t *events;
 
-    http_parser_settings parser_settings;
-    int waiting;
-    connection_t *session;
     buffer_init(&rsp_buffer);
 
     configure_parser(&parser_settings);
@@ -215,7 +210,6 @@ void *epoll_loop(void *ptr) {
         return NULL;
     }
 
-    connection_t *server_session = NULL;
     if((server_session = malloc(sizeof(connection_t))) == NULL) {
         perror("malloc");
         return NULL;
@@ -281,10 +275,6 @@ void *epoll_loop(void *ptr) {
                     perror("unblock_socket");
                     goto loop_accept_failed;
                 }
-#if defined(SO_NOSIGPIPE)
-                int set = 1;
-                setsockopt(in_fd, SOL_SOCKET, SO_NOSIGPIPE, &set, sizeof(set));
-#endif
                 connection_t *new_session = NULL;
                 if((new_session = malloc(sizeof(connection_t))) == NULL) {
                     perror("malloc");
@@ -423,6 +413,7 @@ int main(int argc, char *argv[]) {
             return -1;
         }
     }
+    signal(SIGPIPE, SIG_IGN);
     printf("Starting UVB Server on port %s with %lu threads\n", port, threads);
     server_t *server = new_server(threads, "0.0.0.0", port);
     server_wait(server);
