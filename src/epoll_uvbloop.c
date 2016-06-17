@@ -33,14 +33,16 @@ uvbloop_t *uvbloop_init(void *options) {
 
 int uvbloop_register_fd(uvbloop_t *loop, int fd, void *data, uvbloop_nset_t nset) {
     char events = 0;
+    struct epoll_event event;
+
     if(nset & UVBLOOP_R) {
         events |= EPOLLIN;
     }
     if(nset & UVBLOOP_W) {
         events |= EPOLLOUT;
     }
-    struct epoll_event event;
     event.data.ptr = data;
+    event.events = events;
     if(epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, fd, &event) == -1) {
         perror("epoll_ctl");
         return -1;
