@@ -1,0 +1,18 @@
+language: c
+
+os:
+ - linux
+
+compiler:
+ - gcc
+
+addons:
+ apt:
+  packages:
+   - lmdb
+   - lmdb-dev
+   - http-parser
+   - http-parser-dev
+
+script:
+ - make
