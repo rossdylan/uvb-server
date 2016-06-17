@@ -210,12 +210,10 @@ void *epoll_loop(void *ptr) {
 
     configure_parser(&parser_settings);
 
-    listen_fd = make_server_socket(data->port);
     if((data->listen_fd = make_server_socket(data->port)) < 0) {
         perror("make_server_socket");
         return NULL;
     }
-    data->listen_fd = listen_fd;
 
     connection_t *server_session = NULL;
     if((server_session = malloc(sizeof(connection_t))) == NULL) {
@@ -224,16 +222,16 @@ void *epoll_loop(void *ptr) {
     }
     server_session->fd = data->listen_fd;
 
-    if(unblock_socket(data->listen_fd) == -1) {
+    if(unblock_socket(server_session->fd) == -1) {
         perror("unblock_socket");
         return NULL;
     }
-    if(listen(data->listen_fd, SOMAXCONN) == -1) {
+    if(listen(server_session->fd, SOMAXCONN) == -1) {
         perror("listen");
         return NULL;
     }
 
-    if(uvbloop_register_fd(loop, data->listen_fd, (void *)server_session, UVBLOOP_R) == -1) {
+    if(uvbloop_register_fd(loop, server_session->fd, (void *)server_session, UVBLOOP_R) == -1) {
         perror("uvbloop_register_fd");
         return NULL;
     }
