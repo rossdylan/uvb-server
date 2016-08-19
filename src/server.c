@@ -1,6 +1,5 @@
 #define _GNU_SOURCE
 
-#include "server.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -8,9 +7,21 @@
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/epoll.h>
 #include <errno.h>
+#include <signal.h>
+#include "server.h"
+#include "uvbloop.h"
+
+
+#ifdef __linux__
 #include <sched.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <sys/param.h>
+#include <sys/cpuset.h>
+#include <pthread_np.h>
+#endif
 
 
 static const char header_page1[] = "--- Ultimate Victory Battle (v4.0.0) ---\n"
@@ -27,7 +38,6 @@ static uint64_t header_size2 = (sizeof(header_page2)/sizeof(header_page2[0])) - 
 static counter_t *counter;
 static char *inc_response;
 static uint64_t inc_response_sz;
-static inline bool epoll_error(struct epoll_event e);
 
 /**
  * Use asprintf to generate a HTTP response.
@@ -93,13 +103,6 @@ int make_server_socket(const char *port) {
 }
 
 
-/**
- * Check if epoll has errored.
- */
-static inline bool epoll_error(struct epoll_event e) {
-    return e.events & EPOLLERR || e.events & EPOLLHUP || !(e.events & EPOLLIN);
-}
-
 
 /**
  * Set the initial state of a connection.
@@ -134,6 +137,7 @@ static int on_message_complete(http_parser *hp) {
         exit(0);
     }
 #endif
+
     if(http_url_compare(&session->msg, "/") != 0) {
         // OH GOD DON'T LOOK I'M A HIDEOUS HACK
         // We peak into the buffer and take away the first
@@ -145,7 +149,7 @@ static int on_message_complete(http_parser *hp) {
             session->msg.url.buffer[15] = '\0';
         }
         counter_inc(counter, key);
-        send(session->fd, inc_response, inc_response_sz, MSG_NOSIGNAL);
+        write(session->fd, inc_response, inc_response_sz);
     }
     else {
         buffer_append(&rsp_buffer, header_page1, header_size1);
@@ -155,7 +159,7 @@ static int on_message_complete(http_parser *hp) {
         char *resp = NULL;
         int len = make_http_response(&resp, 200, "OK", "text/plain", rsp_buffer.buffer);
 
-        send(session->fd, resp, len, MSG_NOSIGNAL);
+        write(session->fd, resp, len);
 
         free(resp);
         buffer_fast_clear(&rsp_buffer);
@@ -189,73 +193,67 @@ static void configure_parser(http_parser_settings *settings) {
  */
 void *epoll_loop(void *ptr) {
     thread_data_t *data = ptr;
-
-    int listen_fd =-1;
-    struct epoll_event *events;
-    struct epoll_event event;
+    uvbloop_t *loop = NULL;
+    uvbloop_event_t *events;
     http_parser_settings parser_settings;
     int waiting;
-    connection_t *session;
+    connection_t *session = NULL;
+    connection_t *server_session = NULL;
+
+    if((loop = uvbloop_init(NULL)) == NULL) {
+        perror("uvbloop_init");
+        return NULL;
+    }
+
     buffer_init(&rsp_buffer);
 
     configure_parser(&parser_settings);
 
-    listen_fd = make_server_socket(data->port);
     if((data->listen_fd = make_server_socket(data->port)) < 0) {
         perror("make_server_socket");
         return NULL;
     }
-    data->listen_fd = listen_fd;
 
-    if((data->epoll_fd = epoll_create1(0)) == -1) {
-        perror("epoll_create");
-        return NULL;
-    }
-
-    // set up the server sockets epoll event data
-    if((event.data.ptr = malloc(sizeof(connection_t))) == NULL) {
+    if((server_session = malloc(sizeof(connection_t))) == NULL) {
         perror("malloc");
         return NULL;
     }
-    connection_t *server_session = (connection_t *)event.data.ptr;
     server_session->fd = data->listen_fd;
 
-    if(unblock_socket(data->listen_fd) == -1) {
+    if(unblock_socket(server_session->fd) == -1) {
         perror("unblock_socket");
         return NULL;
     }
-    if(listen(data->listen_fd, SOMAXCONN) == -1) {
+    if(listen(server_session->fd, SOMAXCONN) == -1) {
         perror("listen");
         return NULL;
     }
 
-    event.events = EPOLLIN;
-    if(epoll_ctl(data->epoll_fd, EPOLL_CTL_ADD, data->listen_fd, &event) == -1) {
-        perror("epoll_create");
+    if(uvbloop_register_fd(loop, server_session->fd, (void *)server_session, UVBLOOP_R) == -1) {
+        perror("uvbloop_register_fd");
         return NULL;
     }
 
-    if((events = calloc(MAXEVENTS, sizeof(struct epoll_event))) == NULL) {
+    if((events = calloc(MAXEVENTS, sizeof(uvbloop_event_t))) == NULL) {
         perror("calloc");
         return NULL;
     }
 
     while(true) {
-        waiting = epoll_wait(data->epoll_fd, events, MAXEVENTS, -1);
+        waiting = uvbloop_wait(loop, events, MAXEVENTS);
         if(waiting < 0) {
             if(errno != EINTR) {
-                perror("epoll_wait");
+                perror("uvbloop_wait");
                 return NULL;
             }
         }
         for(int i=0; i<waiting; i++) {
-            session = (connection_t *)events[i].data.ptr;
+            session = (connection_t *)uvbloop_event_data(&events[i]);
             if(session == NULL) {
                 continue;
             }
-            if(epoll_error(events[i])) {
+            if(uvbloop_event_error(&events[i])) {
                 free_connection(session);
-                events[i].data.ptr = NULL;
                 continue;
             }
             /**
@@ -268,34 +266,32 @@ void *epoll_loop(void *ptr) {
 
                 if((in_fd = accept(data->listen_fd, &in_addr, &in_len)) == -1) {
                     if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-                        goto epoll_accept_failed;
+                        goto loop_accept_failed;
                     }
                     else {
                         perror("accept");
-                        goto epoll_accept_failed;
+                        goto loop_accept_failed;
                     }
                 }
 
                 if(unblock_socket(in_fd) == -1) {
                     //TODO maybe do extra handling of this error case?
                     perror("unblock_socket");
-                    goto epoll_accept_failed;
+                    goto loop_accept_failed;
                 }
-                if((event.data.ptr = malloc(sizeof(connection_t))) == NULL) {
+                connection_t *new_session = NULL;
+                if((new_session = malloc(sizeof(connection_t))) == NULL) {
                     perror("malloc");
-                    goto epoll_accept_failed;
+                    goto loop_accept_failed;
                 }
-
-                connection_t *new_session = (connection_t *)event.data.ptr;
                 init_connection(new_session, in_fd);
-                event.events = EPOLLIN;
-                if(epoll_ctl(data->epoll_fd, EPOLL_CTL_ADD, in_fd, &event) != 0) {
-                    perror("epoll_ctl");
+                if(uvbloop_register_fd(loop, in_fd, (void *)new_session, UVBLOOP_R) == -1) {
+                    perror("uvbloop_register_fd");
                     free_connection(new_session);
-                    goto epoll_accept_failed;
+                    goto loop_accept_failed;
                 }
 
-epoll_accept_failed: ;
+loop_accept_failed: ;
             }
             else {
                 bool done = false;
@@ -326,7 +322,6 @@ epoll_accept_failed: ;
 serviced:
                 if(done) {
                     free_connection(session);
-                    events[i].data.ptr = NULL;
                 }
             }
         }
@@ -348,7 +343,7 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
         goto new_server_free;
     }
     timer_mgr_init(&server->timers);
-    register_timer(&server->timers, counter_gen_stats, STATS_SECS, (void *)counter);
+    register_timer(&server->timers, counter_gen_stats, STATS_SECS * 1000, (void *)counter);
 
     // Make our array of threads
     if((server->threads = calloc(nthreads, sizeof(pthread_t))) == NULL) {
@@ -357,8 +352,15 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
         goto new_server_free;
     }
 
-
+#ifdef __linux__
     cpu_set_t set;
+    size_t set_sz = sizeof(cpu_set_t);
+#endif
+#ifdef __FreeBSD__
+    cpuset_t set;
+    size_t set_sz = sizeof(cpuset_t);
+#endif
+
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     for(size_t i=0; i<nthreads; i++) {
@@ -371,9 +373,11 @@ server_t *new_server(const size_t nthreads, const char *addr, const char *port) 
         tdata->port = port;
         tdata->thread_id = i;
 
-        memset(&set, 0, sizeof(cpu_set_t));
+#ifndef __APPLE__
+        memset(&set, 0, set_sz);
         CPU_SET(i, &set);
-        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &set);
+        pthread_attr_setaffinity_np(&attr, set_sz, &set);
+#endif
         if(pthread_create(&server->threads[i], NULL, epoll_loop, (void *)tdata) != 0) {
             perror("pthread_create");
             goto new_server_free;
@@ -413,6 +417,7 @@ int main(int argc, char *argv[]) {
             return -1;
         }
     }
+    signal(SIGPIPE, SIG_IGN);
     printf("Starting UVB Server on port %s with %lu threads\n", port, threads);
     server_t *server = new_server(threads, "0.0.0.0", port);
     server_wait(server);

@@ -1,7 +1,8 @@
 /**
  * File: list.h
  * A linked list implementation that I (rossdylan) wrote for a systems
- * programming course at RIT. Using it here as well.
+ * programming course at RIT. Using it here as well. Prefixed with rd_ because
+ * bsd has sys/queue.h which redefines pretty much all of these macros.
  *
  */
 #pragma once
@@ -13,18 +14,18 @@
 /**
  * Entry point for the list, holds head/tail pointers
  */
-struct list_head {
-    struct list_node *head;
-    struct list_node *tail;
+struct rd_list_head {
+    struct rd_list_node *head;
+    struct rd_list_node *tail;
 };
 
 /**
  * Struct embedded within a user defined struct. Our linked list is
  * built from within user structures. This style is taken from the linux kernel
  */
-struct list_node {
-    struct list_node *next;
-    struct list_node *prev;
+struct rd_list_node {
+    struct rd_list_node *next;
+    struct rd_list_node *prev;
 };
 
 /**
@@ -32,17 +33,17 @@ struct list_node {
  * is taken from ftp://rtfm.mit.edu/pub/usenet-by-group/news.answers/C-faq/faq
  * section 2.14
  */
-#define offsetof(type, f) ((unsigned long)((char *)&((type *)0)->f - (char *)(type *)0))
+#define rd_offsetof(type, f) ((unsigned long)((char *)&((type *)0)->f - (char *)(type *)0))
 
 // n: list_node
-#define LIST_NEXT(n) n.next
-#define LIST_PREV(n) n.prev
+#define RD_LIST_NEXT(n) n.next
+#define RD_LIST_PREV(n) n.prev
 
 // n: list_node, t: type of wrapping struct
-#define LIST_ENTRY(node, type) (type *)((unsigned long)(node) - offsetof(type, list))
+#define RD_LIST_ENTRY(node, type) (type *)((unsigned long)(node) - rd_offsetof(type, list))
 
 // h: list_head; Initialize a static list_head
-#define LIST_INIT(h) (h)->head = NULL; (h)->tail = NULL;
+#define RD_LIST_INIT(h) (h)->head = NULL; (h)->tail = NULL;
 
 
 
@@ -50,10 +51,10 @@ struct list_node {
  * This is kinda super ugly, but it provides a /nice/-ish api.
  * We just have to remember that there is a } needed at the end of it
  */
-#define LIST_FOREACH(lhead, tmp, type) \
-	tmp = LIST_ENTRY((lhead)->head, type); \
-	for(struct list_node *cur=(lhead)->head; cur != NULL; cur=cur->next) { \
-		tmp = LIST_ENTRY(cur, type);
+#define RD_LIST_FOREACH(lhead, tmp, type) \
+    tmp = RD_LIST_ENTRY((lhead)->head, type); \
+    for(struct rd_list_node *cur=(lhead)->head; cur != NULL; cur=cur->next) { \
+        tmp = RD_LIST_ENTRY(cur, type);
 //}
 
 
@@ -61,22 +62,22 @@ struct list_node {
  * Function type for a function that can be used to filter/select items
  * in a list.
  */
-typedef int32_t (*list_filter_func)(struct list_node *node, void *cmpdata);
+typedef int32_t (*rd_list_filter_func)(struct rd_list_node *node, void *cmpdata);
 
 /**
  * Append a new node to the given list
  */
-void list_append(struct list_head *head, struct list_node *next);
+void rd_list_append(struct rd_list_head *head, struct rd_list_node *next);
 
 /**
  * Remove the node at the given index and return it
  */
-struct list_node *list_remove(struct list_head *head, uint64_t index);
+struct rd_list_node *rd_list_remove(struct rd_list_head *head, uint64_t index);
 
-struct list_node *list_remove_by_func(struct list_head *head, list_filter_func func, void *cmpdata);
+struct rd_list_node *rd_list_remove_by_func(struct rd_list_head *head, rd_list_filter_func func, void *cmpdata);
 
-struct list_node *list_get(struct list_head *head, uint64_t index);
+struct rd_list_node *rd_list_get(struct rd_list_head *head, uint64_t index);
 
-struct list_node *list_get_by_func(struct list_head *head, list_filter_func func, void *cmpdata);
+struct rd_list_node *rd_list_get_by_func(struct rd_list_head *head, rd_list_filter_func func, void *cmpdata);
 
-#define LIST_GET_ENTRY(head, index, type) LIST_ENTRY(list_get(head, index), type);
+#define RD_LIST_GET_ENTRY(head, index, type) RD_LIST_ENTRY(rd_list_get(head, index), type);

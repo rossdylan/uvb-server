@@ -9,7 +9,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <sys/epoll.h>
 #include "buffer.h"
 #include "counter.h"
 #include "http.h"
